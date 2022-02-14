@@ -37,3 +37,7 @@ func ShardPortIterator(si ShardInfo) func() uint16 {
 		return port
 	}
 }
+
+type Token struct {
+	value int64
+}
