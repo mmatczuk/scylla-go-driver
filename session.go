@@ -31,7 +31,8 @@ func (s SessionConfig) newConnConfig() transport.ConnConfig {
 }
 
 // Connect creates session and discovers cluster topology via control connection.
-func Connect(cfg SessionConfig) (*Session, error) { // nolint:unused // This will be used.
+// nolint:unused // This will be used.
+func Connect(cfg SessionConfig) (*Session, error) {
 	if len(cfg.hosts) == 0 {
 		return nil, fmt.Errorf("connecting session requireas at least 1 host address")
 	}

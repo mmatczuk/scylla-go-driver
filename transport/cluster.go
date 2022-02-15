@@ -98,7 +98,7 @@ func (c *ControlConn) UpdateTopology() error {
 
 func (c *ControlConn) loop() {
 	for {
-		_ = <-c.RefreshTimer.C
+		<-c.RefreshTimer.C
 		if err := c.UpdateTopology(); err != nil {
 			// Handling error?
 			return
