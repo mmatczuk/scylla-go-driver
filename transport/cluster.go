@@ -8,6 +8,7 @@ import (
 	"scylla-go-driver/frame"
 )
 
+// Should it be in the same var?
 var (
 	PeerQuery = Statement{
 		Content:     "SELECT * FROM system.peers",
@@ -24,41 +25,46 @@ const (
 )
 
 type Cluster struct {
-	Peers map[string]*Node // Difference between known peer and node?
-
-	// Yet to be used.
-	//Ring        map[Token]*Node
-	//DataCenters map[string]*DataCenter
+	Data    *ClusterData
+	Control *ControlConn
 
 	// chan for refreshing?
 }
 
 type DataCenter struct {
-	nodes   []Node
-	rackCnt uint // Type?
+	Nodes   []Node
+	RackCnt uint // Type?
+}
+
+type ClusterData struct {
+	Peers map[string]*Node // Difference between known peers and all nodes?
+
+	// Yet to be used.
+	// Ring        map[Token]*Node
+	// DataCenters map[string]*DataCenter
 }
 
 type ControlConn struct {
-	cluster      *Cluster
-	conn         *Conn
-	cfg          ConnConfig
-	refreshTimer *time.Ticker
+	Cld          *ClusterData
+	Conn         *Conn
+	Cfg          ConnConfig
+	RefreshTimer *time.Ticker
 
 	// pool config?
 	// chan for refreshing (connected with the one in cluster)?
 }
 
-func OpenControlConn(addr string, cl *Cluster, cfg ConnConfig) (*ControlConn, error) {
+func OpenControlConn(addr string, cld *ClusterData, cfg ConnConfig) (*ControlConn, error) {
 	c, err := OpenConn(addr, nil, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("opening control conn: %w", err)
 	}
 
 	control := &ControlConn{
-		cluster:      cl,
-		conn:         c,
-		cfg:          cfg,
-		refreshTimer: time.NewTicker(refreshTime),
+		Cld:          cld,
+		Conn:         c,
+		Cfg:          cfg,
+		RefreshTimer: time.NewTicker(refreshTime),
 	}
 
 	err = control.UpdateTopology()
@@ -68,7 +74,7 @@ func OpenControlConn(addr string, cl *Cluster, cfg ConnConfig) (*ControlConn, er
 }
 
 func (c *ControlConn) UpdateTopology() error {
-	res, err := c.conn.Query(PeerQuery, nil)
+	res, err := c.Conn.Query(PeerQuery, nil)
 	if err != nil {
 		return fmt.Errorf("discovering topology: %w", err)
 	}
@@ -82,17 +88,17 @@ func (c *ControlConn) UpdateTopology() error {
 			addr:       addr,
 			datacenter: string(v[peerDC]),
 			rack:       string(v[peerRack]),
-			pool:       InitNodeConnPool(addr, c.cfg),
+			pool:       InitNodeConnPool(addr, c.Cfg),
 		}
 	}
 
-	c.cluster.Peers = m
+	c.Cld.Peers = m
 	return nil
 }
 
 func (c *ControlConn) loop() {
 	for {
-		_ = <-c.refreshTimer.C
+		_ = <-c.RefreshTimer.C
 		if err := c.UpdateTopology(); err != nil {
 			// Handling error?
 			return

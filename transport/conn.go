@@ -193,10 +193,9 @@ type Conn struct {
 }
 
 type ConnConfig struct {
-	TCPNoDelay bool
-	Timeout    time.Duration
-	// This will be used.
-	// DefaultConsistency frame.Consistency
+	TCPNoDelay         bool
+	Timeout            time.Duration
+	DefaultConsistency frame.Consistency
 }
 
 const (
