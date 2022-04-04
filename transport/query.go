@@ -60,20 +60,22 @@ func makeStatement(cql string) Statement {
 }
 
 type QueryResult struct {
-	Rows        []frame.Row
-	Warnings    []string
-	TracingID   frame.UUID
-	PagingState frame.Bytes
-	ColSpec     []frame.ColumnSpec
+	Rows         []frame.Row
+	Warnings     []string
+	TracingID    frame.UUID
+	HasMorePages bool
+	PagingState  frame.Bytes
+	ColSpec      []frame.ColumnSpec
 }
 
 func makeQueryResult(res frame.Response) (QueryResult, error) {
 	switch v := res.(type) {
 	case *RowsResult:
 		return QueryResult{
-			Rows:        v.RowsContent,
-			PagingState: v.Metadata.PagingState,
-			ColSpec:     v.Metadata.Columns,
+			Rows:         v.RowsContent,
+			PagingState:  v.Metadata.PagingState,
+			HasMorePages: v.Metadata.Flags&frame.HasMorePages > 0,
+			ColSpec:      v.Metadata.Columns,
 		}, nil
 	case *VoidResult, *SchemaChangeResult, *SetKeyspaceResult:
 		return QueryResult{}, nil
