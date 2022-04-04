@@ -55,4 +55,12 @@ func (q *Query) BindInt64(pos int, v int64) *Query {
 	return q
 }
 
+func (q *Query) SetPageSize(v int32) {
+	q.stmt.PageSize = v
+}
+
+func (q *Query) PageSize() int32 {
+	return q.stmt.PageSize
+}
+
 type Result transport.QueryResult
