@@ -33,14 +33,13 @@ func compareNodes(c *Cluster, addr string, expected *Node) error {
 }
 
 func TestClusterIntegration(t *testing.T) {
-	cfg := ConnConfig{Timeout: 250 * time.Millisecond}
 	addr := frame.Inet{
 		IP:   []byte{192, 168, 100, 100},
 		Port: 9042,
 	}
 
 	// There is no one listening at the first address, it just checks cluster proper behavior.
-	c, err := NewCluster(cfg, []string{frame.StatusChange}, "123.123.123.123:1234", TestHost+":9042")
+	c, err := NewCluster(dummyConnConfig, []string{frame.StatusChange}, "123.123.123.123:1234", TestHost+":9042")
 	if err != nil {
 		t.Fatal(err)
 	}

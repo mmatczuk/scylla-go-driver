@@ -10,8 +10,8 @@ import (
 
 const refillerBackoff = 500 * time.Millisecond
 
-func newTestConnPool(t *testing.T, cfg ConnConfig) *ConnPool {
-	p, err := NewConnPool(TestHost, cfg)
+func newTestConnPool(t *testing.T) *ConnPool {
+	p, err := NewConnPool(TestHost, dummyConnConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +30,7 @@ func newTestConnPool(t *testing.T, cfg ConnConfig) *ConnPool {
 }
 
 func TestConnPoolIntegration(t *testing.T) {
-	p := newTestConnPool(t, ConnConfig{})
+	p := newTestConnPool(t)
 
 	t.Log("Close connections")
 	for _, c := range p.AllConns() {
@@ -60,7 +60,7 @@ func TestConnPoolIntegration(t *testing.T) {
 }
 
 func TestConnPoolConnIntegration(t *testing.T) {
-	p := newTestConnPool(t, ConnConfig{})
+	p := newTestConnPool(t)
 	defer p.Close()
 
 	t0 := MurmurToken([]byte(""))

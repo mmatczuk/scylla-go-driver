@@ -13,13 +13,19 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+var dummyConnConfig = ConnConfig{
+	Username: "cassandra",
+	Password: "cassandra",
+	Timeout:  250 * time.Millisecond,
+}
+
 func TestOpenShardConnIntegration(t *testing.T) {
 	si := ShardInfo{
 		Shard:    1,
 		NrShards: 2, // Scylla node from docker-compose has only 2 shards
 	}
 
-	c, err := OpenShardConn(TestHost+":19042", si, ConnConfig{Timeout: 500 * time.Millisecond})
+	c, err := OpenShardConn(TestHost+":19042", si, dummyConnConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +41,7 @@ type connTestHelper struct {
 }
 
 func newConnTestHelper(t testing.TB) *connTestHelper {
-	conn, err := OpenConn(TestHost+":9042", nil, ConnConfig{Timeout: 500 * time.Millisecond})
+	conn, err := OpenConn(TestHost+":9042", nil, dummyConnConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
