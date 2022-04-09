@@ -158,3 +158,7 @@ func (s *Session) Prepare(content string) (Query, error) {
 		},
 	}, err
 }
+
+func (s *Session) Close() {
+	s.cluster.Close()
+}

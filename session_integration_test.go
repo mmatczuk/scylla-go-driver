@@ -5,6 +5,8 @@ package scylla
 import (
 	"errors"
 	"testing"
+
+	"go.uber.org/goleak"
 )
 
 const TestHost = "192.168.100.100"
@@ -23,7 +25,9 @@ func newTestSession(t *testing.T) *Session {
 }
 
 func TestSessionIntegration(t *testing.T) {
+	defer goleak.VerifyNone(t)
 	session := newTestSession(t)
+	defer session.Close()
 
 	stmts := []string{
 		"CREATE KEYSPACE IF NOT EXISTS mykeyspace WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 1}",
@@ -70,7 +74,9 @@ const (
 )
 
 func TestSessionPrepareIntegration(t *testing.T) { // nolint:paralleltest // Integration tests are not run in parallel!
+	defer goleak.VerifyNone(t)
 	session := newTestSession(t)
+	defer session.Close()
 
 	initStmts := []string{
 		"DROP KEYSPACE IF EXISTS mykeyspace",
@@ -127,7 +133,9 @@ func TestSessionPrepareIntegration(t *testing.T) { // nolint:paralleltest // Int
 }
 
 func TestSessionIterIntegration(t *testing.T) { // nolint:paralleltest // Integration tests are not run in parallel!
+	defer goleak.VerifyNone(t)
 	session := newTestSession(t)
+	defer session.Close()
 
 	initStmts := []string{
 		"DROP KEYSPACE IF EXISTS mykeyspace",
