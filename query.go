@@ -1,6 +1,8 @@
 package scylla
 
 import (
+	"fmt"
+
 	"github.com/mmatczuk/scylla-go-driver/frame"
 	"github.com/mmatczuk/scylla-go-driver/transport"
 )
@@ -64,3 +66,115 @@ func (q *Query) PageSize() int32 {
 }
 
 type Result transport.QueryResult
+
+func (q *Query) Iter() Iter {
+	it := Iter{
+		requestCh: make(chan struct{}, 1),
+		nextCh:    make(chan transport.QueryResult),
+		errCh:     make(chan error, 1),
+	}
+
+	worker := iterWorker{
+		stmt: q.stmt.Copy(),
+		chooseConn: func() *transport.Conn {
+			return q.session.leastBusyConn()
+		},
+		queryFn:   q.exec,
+		requestCh: it.requestCh,
+		nextCh:    it.nextCh,
+		errCh:     it.errCh,
+	}
+
+	it.requestCh <- struct{}{}
+	go worker.loop()
+	return it
+}
+
+type Iter struct {
+	result transport.QueryResult
+	pos    int
+	rowCnt int
+
+	requestCh chan struct{}
+	nextCh    chan transport.QueryResult
+	errCh     chan error
+	closed    bool
+}
+
+var (
+	ErrClosedIter = fmt.Errorf("iter is closed")
+	ErrNoMoreRows = fmt.Errorf("no more rows left")
+)
+
+func (it *Iter) Next() (frame.Row, error) {
+	if it.closed {
+		return nil, ErrClosedIter
+	}
+
+	if it.pos >= it.rowCnt {
+		var ok bool
+		it.result, ok = <-it.nextCh
+		if !ok {
+			it.Close()
+			return nil, <-it.errCh
+		}
+
+		it.pos = 0
+		it.rowCnt = len(it.result.Rows)
+		it.requestCh <- struct{}{}
+	}
+
+	// We probably got a zero-sized last page, retry to be sure
+	if it.rowCnt == 0 {
+		return it.Next()
+	}
+
+	res := it.result.Rows[it.pos]
+	it.pos++
+	return res, nil
+}
+
+func (it *Iter) Close() {
+	if it.closed {
+		return
+	}
+
+	it.closed = true
+	close(it.requestCh)
+	_, _ = <-it.nextCh
+}
+
+type iterWorker struct {
+	stmt        transport.Statement
+	chooseConn  func() *transport.Conn
+	pagingState []byte
+	queryFn     func(*transport.Conn, transport.Statement, frame.Bytes) (transport.QueryResult, error)
+
+	requestCh chan struct{}
+	nextCh    chan transport.QueryResult
+	errCh     chan error
+}
+
+func (w *iterWorker) loop() {
+	for {
+		_, ok := <-w.requestCh
+		if !ok {
+			return
+		}
+		conn := w.chooseConn()
+		res, err := w.queryFn(conn, w.stmt, w.pagingState)
+		if err != nil {
+			close(w.nextCh)
+			w.errCh <- err
+			return
+		}
+		w.pagingState = res.PagingState
+		w.nextCh <- res
+
+		if !res.HasMorePages {
+			close(w.nextCh)
+			w.errCh <- ErrNoMoreRows
+			return
+		}
+	}
+}
