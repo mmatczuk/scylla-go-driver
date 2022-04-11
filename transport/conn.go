@@ -505,6 +505,8 @@ func (c *Conn) Prepare(s Statement) (Statement, error) {
 	if v, ok := res.(*PreparedResult); ok {
 		s.ID = v.ID
 		s.Values = make([]frame.Value, len(v.Metadata.Columns))
+		s.PkIndexes = v.Metadata.PkIndexes
+		s.PkCnt = v.Metadata.PkCnt
 		return s, nil
 	}
 

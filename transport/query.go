@@ -10,6 +10,8 @@ type Statement struct {
 	ID                frame.Bytes
 	Content           string
 	Values            []frame.Value
+	PkIndexes         []frame.Short
+	PkCnt             frame.Int
 	PageSize          frame.Int
 	Consistency       frame.Consistency
 	SerialConsistency frame.Consistency
