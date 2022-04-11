@@ -449,15 +449,14 @@ func (c *Conn) Startup(options frame.StartupOptions) error {
 	}
 }
 
+// 'AllowAllAuthenticator' and 'org.apache.cassandra.auth.AllowAllAuthenticator'
+// do not require authentication.
 var approvedAuthenticators = map[string]struct{}{
-	"AllowAllAuthenticator":                           {},
 	"PasswordAuthenticator":                           {},
 	"org.apache.cassandra.auth.PasswordAuthenticator": {},
-	"org.apache.cassandra.auth.AllowAllAuthenticator": {},
 	"com.scylladb.auth.TransitionalAuthenticator":     {},
 }
 
-// AuthResponse only supports 'PasswordAuthenticator'.
 func (c *Conn) AuthResponse(a *Authenticate) error {
 	if _, ok := approvedAuthenticators[a.Name]; ok {
 		res, err := c.sendRequest(&AuthResponse{
@@ -468,17 +467,17 @@ func (c *Conn) AuthResponse(a *Authenticate) error {
 			return fmt.Errorf("can't send auth response: %w", err)
 		}
 		switch v := res.(type) {
-		case *AuthChallenge:
-			return fmt.Errorf("authentication challenge is not yet supported: %#+v", v)
 		case *AuthSuccess:
-			log.Printf("successfully authenticated connection: %s\n", c.String())
-			return nil
+			log.Printf("successfully authenticated connection: %s", c.String())
+		case *AuthChallenge:
+			log.Fatalf("authentication challenge is not yet supported: %#+v", v)
 		default:
-			return responseAsError(res)
+			log.Fatalf("authentication: %v", responseAsError(v))
 		}
 	} else {
-		return fmt.Errorf("authenticator not supported: %s", a.Name)
+		log.Fatalf("authenticator not supported: %s", a.Name)
 	}
+	return nil
 }
 
 func (c *Conn) UseKeyspace(ks string) error {

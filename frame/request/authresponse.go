@@ -6,8 +6,8 @@ import (
 
 var _ frame.Request = (*AuthResponse)(nil)
 
-// AuthResponse currently only supports 'PasswordAuthenticator',
-// so it keeps username and password instead of token.
+// AuthResponse currently only supports login and password authentication,
+// so it stores them instead of token for convenience.
 // Spec: https://github.com/apache/cassandra/blob/trunk/doc/native_protocol_v4.spec#L311
 type AuthResponse struct {
 	Username string
