@@ -77,8 +77,13 @@ type SessionConfig struct {
 
 func (cfg SessionConfig) Clone() SessionConfig {
 	v := cfg
+
+	v.Hosts = make([]string, len(cfg.Hosts))
 	copy(v.Hosts, cfg.Hosts)
+
+	v.Events = make([]EventType, len(cfg.Events))
 	copy(v.Events, cfg.Events)
+
 	return v
 }
 
