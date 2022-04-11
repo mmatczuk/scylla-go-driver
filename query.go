@@ -22,8 +22,8 @@ func (q *Query) Exec() (Result, error) {
 }
 
 func (q *Query) AsyncExec(callback func(Result, error)) {
-	// Copy the statement to avoid (bound) values overwrite.
-	stmt := q.stmt.Copy()
+	// Clone the statement to avoid (bound) values overwrite.
+	stmt := q.stmt.Clone()
 
 	go func() {
 		conn := q.session.leastBusyConn()

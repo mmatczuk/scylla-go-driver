@@ -17,21 +17,13 @@ type Statement struct {
 	Compression       bool
 }
 
-func (s *Statement) Copy() Statement {
-	newStmt := Statement{
-		ID:                s.ID,
-		Content:           s.Content,
-		PageSize:          s.PageSize,
-		Consistency:       s.Consistency,
-		SerialConsistency: s.SerialConsistency,
-		Tracing:           s.Tracing,
-		Compression:       s.Compression,
-	}
+func (s Statement) Clone() Statement {
+	v := s
 
-	newStmt.Values = make([]frame.Value, len(s.Values))
-	copy(newStmt.Values, s.Values)
+	v.Values = make([]frame.Value, len(s.Values))
+	copy(v.Values, s.Values)
 
-	return newStmt
+	return v
 }
 
 func makeQuery(s Statement, pagingState frame.Bytes) Query {
