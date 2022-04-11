@@ -52,7 +52,7 @@ func makeExecute(s Statement, pagingState frame.Bytes) Execute {
 	}
 }
 
-func newStatementFromCQL(cql string) Statement {
+func makeStatement(cql string) Statement {
 	return Statement{
 		Content:     cql,
 		Consistency: frame.ONE,
