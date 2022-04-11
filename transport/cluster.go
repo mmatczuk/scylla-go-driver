@@ -88,14 +88,14 @@ type QueryInfo struct {
 	strategy       strategy
 }
 
-func (c *Cluster) newQueryInfo() QueryInfo {
+func (c *Cluster) NewQueryInfo() QueryInfo {
 	return QueryInfo{
 		tokenAwareness: false,
 		topology:       c.Topology(),
 	}
 }
 
-func (c *Cluster) newTokenAwareQueryInfo(t Token, ks string) (QueryInfo, error) {
+func (c *Cluster) NewTokenAwareQueryInfo(t Token, ks string) (QueryInfo, error) {
 	top := c.Topology()
 	// When keyspace is not specified, we take default keyspace from ConnConfig.
 	if ks == "" {
