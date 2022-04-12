@@ -32,10 +32,13 @@ func ParseRowsResult(b *frame.Buffer) *RowsResult {
 	r.RowsContent = make([]frame.Row, r.RowsCnt)
 	for i := range r.RowsContent {
 		r.RowsContent[i] = make(frame.Row, r.Metadata.ColumnsCnt)
-		for j := range r.Metadata.Columns {
+		for j := 0; j < int(r.Metadata.ColumnsCnt); j++ {
 			r.RowsContent[i][j] = frame.CqlValue{
-				Type:  &r.Metadata.Columns[j].Type,
 				Value: b.ReadBytes(),
+			}
+
+			if r.Metadata.Columns != nil {
+				r.RowsContent[i][j].Type = &r.Metadata.Columns[j].Type
 			}
 		}
 	}

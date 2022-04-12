@@ -17,6 +17,7 @@ type Statement struct {
 	SerialConsistency frame.Consistency
 	Tracing           bool
 	Compression       bool
+	Metadata          *frame.ResultMetadata
 }
 
 func (s Statement) Clone() Statement {
@@ -44,6 +45,7 @@ func makeExecute(s Statement, pagingState frame.Bytes) Execute {
 		ID:          s.ID,
 		Consistency: s.Consistency,
 		Options: frame.QueryOptions{
+			Flags:             frame.SkipMetadata,
 			Values:            s.Values,
 			SerialConsistency: s.SerialConsistency,
 			PagingState:       pagingState,
@@ -68,15 +70,23 @@ type QueryResult struct {
 	ColSpec      []frame.ColumnSpec
 }
 
-func makeQueryResult(res frame.Response) (QueryResult, error) {
+func makeQueryResult(meta *frame.ResultMetadata, res frame.Response) (QueryResult, error) {
 	switch v := res.(type) {
 	case *RowsResult:
-		return QueryResult{
+		ret := QueryResult{
 			Rows:         v.RowsContent,
 			PagingState:  v.Metadata.PagingState,
 			HasMorePages: v.Metadata.Flags&frame.HasMorePages > 0,
 			ColSpec:      v.Metadata.Columns,
-		}, nil
+		}
+		if meta != nil && meta.Columns != nil {
+			for i := range ret.Rows {
+				for j := range meta.Columns {
+					ret.Rows[i][j].Type = &meta.Columns[j].Type
+				}
+			}
+		}
+		return ret, nil
 	case *VoidResult, *SchemaChangeResult, *SetKeyspaceResult:
 		return QueryResult{}, nil
 	default:
