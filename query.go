@@ -11,6 +11,7 @@ type Query struct {
 	session *Session
 	stmt    transport.Statement
 	exec    func(*transport.Conn, transport.Statement, frame.Bytes) (transport.QueryResult, error)
+	buf     frame.Buffer
 }
 
 func (q *Query) Exec() (Result, error) {
@@ -36,6 +37,28 @@ func (q *Query) AsyncExec(callback func(Result, error)) {
 		res, err := q.exec(conn, stmt, nil)
 		callback(Result(res), err)
 	}()
+}
+
+var errNoToken = fmt.Errorf("token can't be computed")
+
+// https://github.com/scylladb/scylla/blob/40adf38915b6d8f5314c621a94d694d172360833/compound_compat.hh#L33-L47
+func (q *Query) token() (transport.Token, error) {
+	if q.stmt.PkCnt == 0 {
+		return 0, errNoToken
+	}
+
+	q.buf.Reset()
+	if q.stmt.PkCnt == 1 {
+		return transport.MurmurToken(q.stmt.Values[q.stmt.PkIndexes[0]].Bytes), nil
+	}
+	for _, idx := range q.stmt.PkIndexes {
+		size := q.stmt.Values[idx].N
+		q.buf.WriteShort(frame.Short(size))
+		q.buf.Write(q.stmt.Values[idx].Bytes)
+		q.buf.WriteByte(0)
+	}
+
+	return transport.MurmurToken(q.buf.Bytes()), nil
 }
 
 func (q *Query) BindInt64(pos int, v int64) *Query {
