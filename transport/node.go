@@ -31,6 +31,10 @@ func (n *Node) LeastBusyConn() *Conn {
 	return n.pool.LeastBusyConn()
 }
 
+func (n *Node) Conn(token Token) *Conn {
+	return n.pool.Conn(token)
+}
+
 type RingEntry struct {
 	node  *Node
 	token Token
