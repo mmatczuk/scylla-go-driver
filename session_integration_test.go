@@ -11,7 +11,7 @@ import (
 
 const TestHost = "192.168.100.100"
 
-func newTestSession(t *testing.T) *Session {
+func newTestSession(t testing.TB) *Session {
 	t.Helper()
 
 	// TODO: mmt the port should not be mandatory
