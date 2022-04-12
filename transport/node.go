@@ -1,7 +1,6 @@
 package transport
 
 import (
-	"github.com/google/btree"
 	"go.uber.org/atomic"
 )
 
@@ -37,6 +36,6 @@ type RingEntry struct {
 	token Token
 }
 
-func (r RingEntry) Less(i btree.Item) bool {
-	return r.token < i.(RingEntry).token
+func (r RingEntry) Less(i RingEntry) bool {
+	return r.token < i.token
 }

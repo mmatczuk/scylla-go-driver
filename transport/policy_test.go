@@ -146,7 +146,7 @@ func mockTopologyTokenAwareSimpleStrategy() *topology {
 		{addr: "2", datacenter: "waw"},
 		{addr: "3", datacenter: "waw"},
 	}
-	ring := btree.New(BTreeDegree)
+	ring := btree.New[RingEntry](BTreeDegree)
 
 	ring.ReplaceOrInsert(RingEntry{node: dummyNodes[1], token: 50})
 	ring.ReplaceOrInsert(RingEntry{node: dummyNodes[0], token: 100})
@@ -258,7 +258,7 @@ func mockTopologyTokenAwareNetworkStrategy() *topology {
 		{addr: "8", datacenter: "her", rack: "r4"},
 	}
 	dcs := dcRacksMap{"waw": 2, "her": 2}
-	ring := btree.New(BTreeDegree)
+	ring := btree.New[RingEntry](BTreeDegree)
 
 	ring.ReplaceOrInsert(RingEntry{node: dummyNodes[0], token: 50})
 	ring.ReplaceOrInsert(RingEntry{node: dummyNodes[4], token: 100})

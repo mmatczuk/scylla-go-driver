@@ -40,7 +40,7 @@ type topology struct {
 	peers     peerMap
 	dcRacks   dcRacksMap
 	nodes     []*Node
-	ring      *btree.BTree
+	ring      *btree.BTree[RingEntry]
 	keyspaces ksMap
 }
 
@@ -117,8 +117,8 @@ func (c *Cluster) newTokenAwareQueryInfo(t Token, ks string) (QueryInfo, error) 
 // filter function allows applying additional requirements for nodes to be taken.
 func (t *topology) replicas(token Token, size int, filter func(*Node, []*Node) bool) []*Node {
 	res := make([]*Node, 0, size)
-	it := func(i btree.Item) bool {
-		n := i.(RingEntry).node
+	it := func(i RingEntry) bool {
+		n := i.node
 		if filter(n, res) {
 			res = append(res, n)
 		}
@@ -259,7 +259,7 @@ func newTopology() *topology {
 		peers:   make(peerMap),
 		dcRacks: make(dcRacksMap),
 		nodes:   make([]*Node, 0),
-		ring:    btree.New(BTreeDegree),
+		ring:    btree.New[RingEntry](BTreeDegree),
 	}
 }
 
@@ -401,7 +401,7 @@ func parseNetworkStrategy(name strategyClass, stg map[string]string) (strategy, 
 }
 
 // parseTokensFromRow also inserts tokens into ring.
-func parseTokensFromRow(n *Node, r frame.Row, ring *btree.BTree) error {
+func parseTokensFromRow(n *Node, r frame.Row, ring *btree.BTree[RingEntry]) error {
 	const tokensIndex = 3
 	if tokens, err := r[tokensIndex].AsStringSlice(); err != nil {
 		return err

@@ -10,3 +10,5 @@ require (
 )
 
 require github.com/pkg/profile v1.6.0 // indirect
+
+replace github.com/google/btree => github.com/Michal-Leszczynski/btree v1.0.2-0.20220412174850-ff8ccb34568a
