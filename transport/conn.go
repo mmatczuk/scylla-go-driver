@@ -583,15 +583,13 @@ func (c *Conn) asyncSendRequest(req frame.Request, compress, tracing bool, h Res
 	c.w.submit(r)
 }
 
-func (c *Conn) AsyncQuery(s Statement, pagingState frame.Bytes) {
+func (c *Conn) AsyncQuery(s Statement, pagingState frame.Bytes, h ResponseHandler) {
 	req := makeQuery(s, pagingState)
-	h := make(ResponseHandler, ResponseHandlerSize)
 	c.asyncSendRequest(&req, s.Compression, s.Tracing, h)
 }
 
-func (c *Conn) AsyncExecute(s Statement, pagingState frame.Bytes) {
+func (c *Conn) AsyncExecute(s Statement, pagingState frame.Bytes, h ResponseHandler) {
 	req := makeExecute(s, pagingState)
-	h := make(ResponseHandler, ResponseHandlerSize)
 	c.asyncSendRequest(&req, s.Compression, s.Tracing, h)
 }
 
