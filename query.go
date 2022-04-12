@@ -1,8 +1,6 @@
 package scylla
 
 import (
-	"fmt"
-
 	"github.com/mmatczuk/scylla-go-driver/frame"
 	"github.com/mmatczuk/scylla-go-driver/transport"
 )
@@ -15,7 +13,18 @@ type Query struct {
 }
 
 func (q *Query) Exec() (Result, error) {
-	conn := q.session.leastBusyConn()
+	token, tokenAware := q.token()
+	info := q.info(token, tokenAware)
+	it := q.session.hsp.PlanIter(info)
+
+	var conn *transport.Conn
+
+	if tokenAware {
+		conn = it().Conn(token)
+	} else {
+		conn = it().LeastBusyConn()
+	}
+
 	if conn == nil {
 		return Result{}, errNoConnection
 	}
@@ -39,17 +48,15 @@ func (q *Query) AsyncExec(callback func(Result, error)) {
 	}()
 }
 
-var errNoToken = fmt.Errorf("token can't be computed")
-
 // https://github.com/scylladb/scylla/blob/40adf38915b6d8f5314c621a94d694d172360833/compound_compat.hh#L33-L47
-func (q *Query) token() (transport.Token, error) {
+func (q *Query) token() (transport.Token, bool) {
 	if q.stmt.PkCnt == 0 {
-		return 0, errNoToken
+		return 0, false
 	}
 
 	q.buf.Reset()
 	if q.stmt.PkCnt == 1 {
-		return transport.MurmurToken(q.stmt.Values[q.stmt.PkIndexes[0]].Bytes), nil
+		return transport.MurmurToken(q.stmt.Values[q.stmt.PkIndexes[0]].Bytes), true
 	}
 	for _, idx := range q.stmt.PkIndexes {
 		size := q.stmt.Values[idx].N
@@ -58,7 +65,18 @@ func (q *Query) token() (transport.Token, error) {
 		q.buf.WriteByte(0)
 	}
 
-	return transport.MurmurToken(q.buf.Bytes()), nil
+	return transport.MurmurToken(q.buf.Bytes()), true
+}
+
+func (q *Query) info(token transport.Token, tokenAware bool) transport.QueryInfo {
+	if tokenAware {
+		// TODO: Will the driver support using different keyspaces than default?
+		if info, err := q.session.cluster.NewTokenAwareQueryInfo(token, ""); err == nil {
+			return info
+		}
+	}
+
+	return q.session.cluster.NewQueryInfo()
 }
 
 func (q *Query) BindInt64(pos int, v int64) *Query {
