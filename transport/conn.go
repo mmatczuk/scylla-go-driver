@@ -25,14 +25,14 @@ type response struct {
 	Err error
 }
 
-type responseHandler chan response
+type ResponseHandler chan response
 
 type request struct {
 	frame.Request
 	StreamID        frame.StreamID
 	Compress        bool
 	Tracing         bool
-	ResponseHandler responseHandler
+	ResponseHandler ResponseHandler
 }
 
 var _connCloseRequest = request{}
@@ -121,13 +121,13 @@ type connReader struct {
 	connString  func() string
 	connClose   func()
 
-	h      map[frame.StreamID]responseHandler
+	h      map[frame.StreamID]ResponseHandler
 	s      streamIDAllocator
 	closed bool
 	mu     sync.Mutex // mu guards h, s and closed
 }
 
-func (c *connReader) setHandler(h responseHandler) (frame.StreamID, error) {
+func (c *connReader) setHandler(h ResponseHandler) (frame.StreamID, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -151,7 +151,7 @@ func (c *connReader) freeHandler(streamID frame.StreamID) {
 	c.mu.Unlock()
 }
 
-func (c *connReader) handler(streamID frame.StreamID) responseHandler {
+func (c *connReader) handler(streamID frame.StreamID) ResponseHandler {
 	c.mu.Lock()
 	h := c.h[streamID]
 	c.mu.Unlock()
@@ -359,7 +359,7 @@ func WrapConn(conn net.Conn, cfg ConnConfig) (*Conn, error) {
 				R: bufio.NewReaderSize(conn, ioBufferSize),
 			},
 			metrics:    m,
-			h:          make(map[frame.StreamID]responseHandler),
+			h:          make(map[frame.StreamID]ResponseHandler),
 			connString: c.String,
 			connClose:  c.Close,
 		},
@@ -540,7 +540,7 @@ func (c *Conn) RegisterEventHandler(h func(r response), e ...frame.EventType) er
 func (c *Conn) sendRequest(req frame.Request, compress, tracing bool) (frame.Response, error) {
 	// Each handler may encounter 2 responses, one from connWriter.loop()
 	// and one from drainHandlers().
-	h := make(responseHandler, 2)
+	h := make(ResponseHandler, 2)
 
 	streamID, err := c.r.setHandler(h)
 	if err != nil {
