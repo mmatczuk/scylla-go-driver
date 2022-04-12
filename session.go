@@ -69,9 +69,8 @@ func DefaultSessionConfig(hosts ...string) SessionConfig {
 }
 
 type SessionConfig struct {
-	Hosts    []string
-	Keyspace string
-	Events   []EventType
+	Hosts  []string
+	Events []EventType
 	transport.ConnConfig
 }
 
