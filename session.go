@@ -57,10 +57,11 @@ var (
 	errNoConnection = fmt.Errorf("no working connection")
 )
 
-func DefaultSessionConfig(hosts ...string) SessionConfig {
+func DefaultSessionConfig(keyspace string, hosts ...string) SessionConfig {
 	return SessionConfig{
 		Hosts: hosts,
 		ConnConfig: transport.ConnConfig{
+			Keyspace:           keyspace,
 			Timeout:            500 * time.Millisecond,
 			TCPNoDelay:         true,
 			DefaultConsistency: LOCALQUORUM,
