@@ -23,7 +23,7 @@ type roundRobinPolicy struct {
 	counter atomic.Int64
 }
 
-func newRoundRobinPolicy() roundRobinPolicy {
+func NewRoundRobinPolicy() roundRobinPolicy {
 	return roundRobinPolicy{counter: *atomic.NewInt64(0)}
 }
 
@@ -48,7 +48,7 @@ type dcAwareRoundRobinPolicy struct {
 	localDC string
 }
 
-func newDCAwareRoundRobin(dc string) dcAwareRoundRobinPolicy {
+func NewDCAwareRoundRobin(dc string) dcAwareRoundRobinPolicy {
 	return dcAwareRoundRobinPolicy{
 		counter: *atomic.NewInt64(0),
 		localDC: dc,
@@ -85,7 +85,7 @@ type tokenAwarePolicy struct {
 	wrapperPolicy WrapperPolicy
 }
 
-func newTokenAwarePolicy(wp WrapperPolicy) tokenAwarePolicy {
+func NewTokenAwarePolicy(wp WrapperPolicy) tokenAwarePolicy {
 	return tokenAwarePolicy{wrapperPolicy: wp}
 }
 

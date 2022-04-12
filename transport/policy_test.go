@@ -63,7 +63,7 @@ func TestRoundRobinPolicy(t *testing.T) { //nolint:paralleltest // Can't run in 
 		},
 	}
 
-	policy := newRoundRobinPolicy()
+	policy := NewRoundRobinPolicy()
 
 	for i := 0; i < len(testCases); i++ {
 		tc := testCases[i]
@@ -110,7 +110,7 @@ func TestDCAwareRoundRobinPolicy(t *testing.T) { //nolint:paralleltest // Can't 
 		},
 	}
 
-	policy := newDCAwareRoundRobin("eu")
+	policy := NewDCAwareRoundRobin("eu")
 
 	for i := 0; i < len(testCases); i++ {
 		tc := testCases[i]
@@ -208,7 +208,7 @@ func TestTokenAwareSimpleStrategyPolicy(t *testing.T) { //nolint:paralleltest //
 		},
 	}
 
-	policy := newTokenAwarePolicy(dummyWrapper{})
+	policy := NewTokenAwarePolicy(dummyWrapper{})
 
 	for i := 0; i < len(testCases); i++ {
 		tc := testCases[i]
@@ -301,7 +301,7 @@ func TestTokenAwareNetworkStrategyPolicy(t *testing.T) { //nolint:paralleltest /
 		},
 	}
 
-	policy := newTokenAwarePolicy(dummyWrapper{})
+	policy := NewTokenAwarePolicy(dummyWrapper{})
 
 	for i := 0; i < len(testCases); i++ {
 		tc := testCases[i]
