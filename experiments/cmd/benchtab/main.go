@@ -19,7 +19,7 @@ func main() {
 
 	config := readConfig()
 
-	session, err := scylla.NewSession(scylla.DefaultSessionConfig(config.nodeAddresses...))
+	session, err := scylla.NewSession(scylla.DefaultSessionConfig("benchks", config.nodeAddresses...))
 	if err != nil {
 		log.Fatal(err)
 	}
