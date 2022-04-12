@@ -70,7 +70,7 @@ type QueryResult struct {
 	ColSpec      []frame.ColumnSpec
 }
 
-func MakeQueryResult(meta *frame.ResultMetadata, res frame.Response) (QueryResult, error) {
+func MakeQueryResult(res frame.Response, meta *frame.ResultMetadata) (QueryResult, error) {
 	switch v := res.(type) {
 	case *RowsResult:
 		ret := QueryResult{

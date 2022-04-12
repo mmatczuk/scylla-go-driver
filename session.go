@@ -168,6 +168,9 @@ func (s *Session) Query(content string) Query {
 		exec: func(conn *transport.Conn, stmt transport.Statement, pagingState frame.Bytes) (transport.QueryResult, error) {
 			return conn.Query(stmt, pagingState)
 		},
+		asyncExec: func(conn *transport.Conn, stmt transport.Statement, pagingState frame.Bytes, handler transport.ResponseHandler) {
+			conn.AsyncQuery(stmt, pagingState, handler)
+		},
 	}
 }
 
@@ -185,6 +188,9 @@ func (s *Session) Prepare(content string) (Query, error) {
 		stmt: res,
 		exec: func(conn *transport.Conn, stmt transport.Statement, pagingState frame.Bytes) (transport.QueryResult, error) {
 			return conn.Execute(stmt, pagingState)
+		},
+		asyncExec: func(conn *transport.Conn, stmt transport.Statement, pagingState frame.Bytes, handler transport.ResponseHandler) {
+			conn.AsyncExecute(stmt, pagingState, handler)
 		},
 	}, err
 }

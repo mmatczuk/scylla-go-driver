@@ -8,10 +8,13 @@ import (
 )
 
 type Query struct {
-	session *Session
-	stmt    transport.Statement
-	exec    func(*transport.Conn, transport.Statement, frame.Bytes) (transport.QueryResult, error)
-	buf     frame.Buffer
+	session   *Session
+	stmt      transport.Statement
+	buf       frame.Buffer
+	exec      func(*transport.Conn, transport.Statement, frame.Bytes) (transport.QueryResult, error)
+	asyncExec func(*transport.Conn, transport.Statement, frame.Bytes, transport.ResponseHandler)
+	res       []transport.ResponseHandler
+	pending   uint32
 }
 
 func (q *Query) Exec() (Result, error) {
@@ -42,19 +45,38 @@ func (q *Query) pickConn() (*transport.Conn, error) {
 	return conn, nil
 }
 
-func (q *Query) AsyncExec(callback func(Result, error)) {
-	// Clone the statement to avoid (bound) values overwrite.
+func (q *Query) AsyncExec() {
 	stmt := q.stmt.Clone()
+	q.pending++
 
-	go func() {
-		var conn *transport.Conn
-		if conn == nil {
-			callback(Result{}, errNoConnection)
-		}
+	conn, err := q.pickConn()
+	if err != nil {
+		q.res = append(q.res, transport.MakeResponseHandlerWithError(err))
+		return
+	}
 
-		res, err := q.exec(conn, stmt, nil)
-		callback(Result(res), err)
-	}()
+	h := transport.MakeResponseHandler()
+	q.res = append(q.res, h)
+	q.asyncExec(conn, stmt, nil, h)
+}
+
+// Fetch returns results in the same order they were queried.
+func (q *Query) Fetch() (Result, error) {
+	if q.pending <= 0 {
+		return Result{}, fmt.Errorf("no query to be fetched")
+	}
+
+	h := q.res[0]
+	q.res = q.res[1:]
+	q.pending--
+
+	resp := <-h
+	if resp.Err != nil {
+		return Result{}, resp.Err
+	}
+
+	res, err := transport.MakeQueryResult(resp.Response, q.stmt.Metadata)
+	return Result(res), err
 }
 
 // https://github.com/scylladb/scylla/blob/40adf38915b6d8f5314c621a94d694d172360833/compound_compat.hh#L33-L47
@@ -90,10 +112,8 @@ func (q *Query) info(token transport.Token, tokenAware bool) transport.QueryInfo
 
 func (q *Query) BindInt64(pos int, v int64) *Query {
 	p := &q.stmt.Values[pos]
-	if p.N == 0 {
-		p.N = 8
-		p.Bytes = make([]byte, 8)
-	}
+	p.N = 8
+	p.Bytes = make([]byte, 8)
 
 	p.Bytes[0] = byte(v >> 56)
 	p.Bytes[1] = byte(v >> 48)
