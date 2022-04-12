@@ -279,6 +279,7 @@ const (
 	requestChanSize      = maxStreamID / 2
 	maxCoalescedRequests = 100
 	ioBufferSize         = 8192
+	ResponseHandlerSize  = 2
 )
 
 // OpenShardConn opens connection mapped to a specific shard on Scylla node.
@@ -536,7 +537,7 @@ func (c *Conn) RegisterEventHandler(h func(r response), e ...frame.EventType) er
 func (c *Conn) sendRequest(req frame.Request, compress, tracing bool) (frame.Response, error) {
 	// Each handler may encounter 2 responses, one from connWriter.loop()
 	// and one from drainHandlers().
-	h := make(ResponseHandler, 2)
+	h := make(ResponseHandler, ResponseHandlerSize)
 
 	streamID, err := c.r.setHandler(h)
 	if err != nil {
@@ -559,6 +560,39 @@ func (c *Conn) sendRequest(req frame.Request, compress, tracing bool) (frame.Res
 	resp := <-h
 
 	return resp.Response, resp.Err
+}
+
+func (c *Conn) asyncSendRequest(req frame.Request, compress, tracing bool, h ResponseHandler) {
+	streamID, err := c.r.setHandler(h)
+	if err != nil {
+		h <- response{Err: fmt.Errorf("set handler %w", err)}
+		return
+	}
+
+	r := request{
+		Request:         req,
+		StreamID:        streamID,
+		Compress:        compress,
+		Tracing:         tracing,
+		ResponseHandler: h,
+	}
+
+	// requestCh might be full after terminating writeLoop so some goroutines could hang here forever.
+	// this could be fixed by changing requestChanSize to be able to hold all possible streamIDs,
+	// adding a grace period before terminating writeLoop or counting active streams.
+	c.w.submit(r)
+}
+
+func (c *Conn) AsyncQuery(s Statement, pagingState frame.Bytes) {
+	req := makeQuery(s, pagingState)
+	h := make(ResponseHandler, ResponseHandlerSize)
+	c.asyncSendRequest(&req, s.Compression, s.Tracing, h)
+}
+
+func (c *Conn) AsyncExecute(s Statement, pagingState frame.Bytes) {
+	req := makeExecute(s, pagingState)
+	h := make(ResponseHandler, ResponseHandlerSize)
+	c.asyncSendRequest(&req, s.Compression, s.Tracing, h)
 }
 
 func (c *Conn) Waiting() int {
