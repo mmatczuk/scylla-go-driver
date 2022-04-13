@@ -38,7 +38,7 @@ func (q *Query) AsyncExec(callback func(Result, error)) {
 	stmt := q.stmt.Clone()
 
 	go func() {
-		conn := q.session.leastBusyConn()
+		var conn *transport.Conn
 		if conn == nil {
 			callback(Result{}, errNoConnection)
 		}
