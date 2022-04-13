@@ -15,7 +15,7 @@ func newTestSession(t *testing.T) *Session {
 	t.Helper()
 
 	// TODO: mmt the port should not be mandatory
-	var cfg = DefaultSessionConfig(TestHost + ":9042")
+	var cfg = DefaultSessionConfig("", TestHost+":9042")
 	cfg.DefaultConsistency = 1
 	s, err := NewSession(cfg)
 	if err != nil {
