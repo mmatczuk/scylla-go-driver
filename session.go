@@ -157,11 +157,6 @@ func NewSession(cfg SessionConfig) (*Session, error) {
 	return s, nil
 }
 
-// FIXME: to be replaced by host selection policy.
-func (s *Session) leastBusyConn() *transport.Conn {
-	return s.cluster.Topology().PeerHACK().LeastBusyConn()
-}
-
 func (s *Session) Query(content string) Query {
 	return Query{session: s,
 		stmt: transport.Statement{Content: content, Consistency: s.cfg.DefaultConsistency},
@@ -172,7 +167,8 @@ func (s *Session) Query(content string) Query {
 }
 
 func (s *Session) Prepare(content string) (Query, error) {
-	conn := s.leastBusyConn()
+	it := s.hsp.PlanIter(s.cluster.NewQueryInfo())
+	conn := it().LeastBusyConn()
 	if conn == nil {
 		return Query{}, errNoConnection
 	}
