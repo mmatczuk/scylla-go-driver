@@ -137,17 +137,10 @@ func (t *topology) replicas(token Token, size int, filter func(*Node, []*Node) b
 
 // NewCluster also creates control connection and starts handling events and refreshing topology.
 func NewCluster(cfg ConnConfig, e []frame.EventType, hosts ...string) (*Cluster, error) {
-	if len(hosts) == 0 {
-		return nil, fmt.Errorf("at least one host is required to create cluster")
-	}
-
-	k := make([]string, len(hosts))
-	copy(k, hosts)
-
 	c := &Cluster{
 		cfg:               cfg,
 		handledEvents:     e,
-		knownHosts:        k,
+		knownHosts:        hosts,
 		refreshChan:       make(requestChan, 1),
 		reopenControlChan: make(requestChan, 1),
 		closeChan:         make(requestChan, 1),
