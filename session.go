@@ -120,13 +120,18 @@ func (cfg *SessionConfig) Validate() error {
 func (cfg SessionConfig) pickHostSelectionPolicy() transport.HostSelectionPolicy {
 	switch cfg.Policy {
 	case RoundRobin:
-		return transport.NewRoundRobinPolicy()
+		p := transport.NewRoundRobinPolicy()
+		return &p
 	case TokenAware:
-		return transport.NewTokenAwarePolicy(transport.NewRoundRobinPolicy())
+		rr := transport.NewRoundRobinPolicy()
+		p := transport.NewTokenAwarePolicy(&rr)
+		return &p
 	case DCAware:
-		return transport.NewDCAwareRoundRobin(cfg.LocalDC)
+		p := transport.NewDCAwareRoundRobin(cfg.LocalDC)
+		return &p
 	default:
-		return transport.NewRoundRobinPolicy()
+		p := transport.NewRoundRobinPolicy()
+		return &p
 	}
 }
 
