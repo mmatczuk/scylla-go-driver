@@ -23,7 +23,7 @@ type (
 	requestChan chan struct{}
 )
 
-const BTreeDegree = 2
+const BTreeDegree = 8
 
 type Cluster struct {
 	topology          atomic.Value // *topology
