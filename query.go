@@ -1,6 +1,8 @@
 package scylla
 
 import (
+	"fmt"
+
 	"github.com/mmatczuk/scylla-go-driver/frame"
 	"github.com/mmatczuk/scylla-go-driver/transport"
 )
@@ -116,7 +118,7 @@ func (q *Query) Iter() Iter {
 	}
 
 	worker := iterWorker{
-		stmt: q.stmt.Copy(),
+		stmt: q.stmt.Clone(),
 		chooseConn: func() *transport.Conn {
 			return q.session.leastBusyConn()
 		},

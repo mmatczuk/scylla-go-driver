@@ -44,14 +44,6 @@ type topology struct {
 	keyspaces ksMap
 }
 
-// TODO: mmt this is a hack and must be removed.
-func (t *topology) PeerHACK() *Node {
-	for _, p := range t.peers {
-		return p
-	}
-	panic("no nodes")
-}
-
 type keyspace struct {
 	strategy strategy
 	// TODO: Add and use attributes below.

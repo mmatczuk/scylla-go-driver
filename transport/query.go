@@ -21,10 +21,8 @@ type Statement struct {
 
 func (s Statement) Clone() Statement {
 	v := s
-
 	v.Values = make([]frame.Value, len(s.Values))
 	copy(v.Values, s.Values)
-
 	return v
 }
 
