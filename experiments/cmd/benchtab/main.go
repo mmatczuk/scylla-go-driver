@@ -18,16 +18,18 @@ func main() {
 	defer p.Stop()
 
 	config := readConfig()
+	if !config.dontPrepare {
+		initSession, err := scylla.NewSession(scylla.DefaultSessionConfig("", config.nodeAddresses...))
+		if err != nil {
+			log.Fatal(err)
+		}
+		initKeyspaceAndTable(initSession)
+	}
 
 	session, err := scylla.NewSession(scylla.DefaultSessionConfig("benchks", config.nodeAddresses...))
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	if !config.dontPrepare {
-		initKeyspaceAndTable(session)
-	}
-
 	if config.workload == Selects && !config.dontPrepare {
 		initSelectsBenchmark(session, config)
 	}
