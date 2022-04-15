@@ -53,6 +53,7 @@ else
 endif
 
 .PHONY: run-benchtab
+run-benchtab: CPUSET=4-5
 run-benchtab:
 ifeq ($(OS),Linux)
 	# TODO add runner remember taskset
@@ -62,7 +63,7 @@ else ifeq ($(OS),Darwin)
 		--network scylla_go_driver_public \
 		-v "$(PWD)/benchtab.dev:/usr/bin/benchtab:ro" \
 		-v "$(PWD)/experiments/pprof:/pprof" \
-		-it --read-only --rm --cpuset-cpus 2,3 ubuntu benchtab -nodes "192.168.100.100:9042"
+		-it --read-only --rm --cpuset-cpus $(CPUSET) ubuntu benchtab -nodes "192.168.100.100:9042"
 else
 	$(error Unsupported OS $(OS))
 endif
