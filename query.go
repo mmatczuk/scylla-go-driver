@@ -15,24 +15,31 @@ type Query struct {
 }
 
 func (q *Query) Exec() (Result, error) {
+	conn, err := q.pickConn()
+	if err != nil {
+		return Result{}, err
+	}
+
+	res, err := q.exec(conn, q.stmt, nil)
+	return Result(res), err
+}
+
+func (q *Query) pickConn() (*transport.Conn, error) {
 	token, tokenAware := q.token()
 	info := q.info(token, tokenAware)
 	it := q.session.hsp.PlanIter(info)
 
 	var conn *transport.Conn
-
 	if tokenAware {
 		conn = it().Conn(token)
 	} else {
 		conn = it().LeastBusyConn()
 	}
-
 	if conn == nil {
-		return Result{}, errNoConnection
+		return nil, errNoConnection
 	}
 
-	res, err := q.exec(conn, q.stmt, nil)
-	return Result(res), err
+	return conn, nil
 }
 
 func (q *Query) AsyncExec(callback func(Result, error)) {
@@ -117,12 +124,16 @@ func (q *Query) Iter() Iter {
 		errCh:     make(chan error, 1),
 	}
 
+	conn, err := q.pickConn()
+	if err != nil {
+		it.errCh <- err
+		return it
+	}
+
 	worker := iterWorker{
-		stmt: q.stmt.Clone(),
-		chooseConn: func() *transport.Conn {
-			return q.session.leastBusyConn()
-		},
-		queryFn:   q.exec,
+		stmt:      q.stmt.Clone(),
+		conn:      conn,
+		queryExec: q.exec,
 		requestCh: it.requestCh,
 		nextCh:    it.nextCh,
 		errCh:     it.errCh,
@@ -155,11 +166,12 @@ func (it *Iter) Next() (frame.Row, error) {
 	}
 
 	if it.pos >= it.rowCnt {
-		var ok bool
-		it.result, ok = <-it.nextCh
-		if !ok {
+		select {
+		case r := <-it.nextCh:
+			it.result = r
+		case err := <-it.errCh:
 			it.Close()
-			return nil, <-it.errCh
+			return nil, err
 		}
 
 		it.pos = 0
@@ -181,17 +193,15 @@ func (it *Iter) Close() {
 	if it.closed {
 		return
 	}
-
 	it.closed = true
 	close(it.requestCh)
-	_, _ = <-it.nextCh
 }
 
 type iterWorker struct {
 	stmt        transport.Statement
-	chooseConn  func() *transport.Conn
+	conn        *transport.Conn
 	pagingState []byte
-	queryFn     func(*transport.Conn, transport.Statement, frame.Bytes) (transport.QueryResult, error)
+	queryExec   func(*transport.Conn, transport.Statement, frame.Bytes) (transport.QueryResult, error)
 
 	requestCh chan struct{}
 	nextCh    chan transport.QueryResult
@@ -204,10 +214,9 @@ func (w *iterWorker) loop() {
 		if !ok {
 			return
 		}
-		conn := w.chooseConn()
-		res, err := w.queryFn(conn, w.stmt, w.pagingState)
+
+		res, err := w.queryExec(w.conn, w.stmt, w.pagingState)
 		if err != nil {
-			close(w.nextCh)
 			w.errCh <- err
 			return
 		}
@@ -215,7 +224,6 @@ func (w *iterWorker) loop() {
 		w.nextCh <- res
 
 		if !res.HasMorePages {
-			close(w.nextCh)
 			w.errCh <- ErrNoMoreRows
 			return
 		}
