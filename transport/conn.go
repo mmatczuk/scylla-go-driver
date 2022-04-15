@@ -278,6 +278,7 @@ type ConnConfig struct {
 
 const (
 	requestChanSize      = maxStreamID / 2
+	targetWaiting        = requestChanSize
 	maxCoalescedRequests = 100
 	ioBufferSize         = 8192
 )
@@ -548,6 +549,8 @@ func MakeResponseHandlerWithError(err error) ResponseHandler {
 }
 
 func (c *Conn) sendRequest(req frame.Request, compress, tracing bool) (frame.Response, error) {
+	c.sendController()
+
 	h := MakeResponseHandler()
 
 	streamID, err := c.r.setHandler(h)
@@ -574,12 +577,13 @@ func (c *Conn) sendRequest(req frame.Request, compress, tracing bool) (frame.Res
 }
 
 func (c *Conn) asyncSendRequest(req frame.Request, compress, tracing bool, h ResponseHandler) {
-try:
+control:
+	c.sendController()
+
 	streamID, err := c.r.setHandler(h)
 	if err != nil {
 		if errors.Is(err, errAllStreamsBusy) {
-			time.Sleep(50 * time.Millisecond)
-			goto try
+			goto control
 		} else {
 			h <- response{Err: fmt.Errorf("set handler %w", err)}
 			return
@@ -598,6 +602,15 @@ try:
 	// this could be fixed by changing requestChanSize to be able to hold all possible streamIDs,
 	// adding a grace period before terminating writeLoop or counting active streams.
 	c.w.submit(r)
+}
+
+func (c *Conn) sendController() {
+	for {
+		if size := c.Waiting(); size < targetWaiting {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 func (c *Conn) AsyncQuery(s Statement, pagingState frame.Bytes, h ResponseHandler) {

@@ -13,12 +13,17 @@ import (
 	"go.uber.org/atomic"
 )
 
-var _poolCloseShard = -1
+const poolCloseShard = -1
+
+type PoolMetrics struct {
+	ReplacedWithLessBusyConn atomic.Uint64
+}
 
 type ConnPool struct {
 	nrShards     int
 	msbIgnore    uint8
 	conns        []atomic.Value
+	metrics      PoolMetrics
 	connClosedCh chan int // notification channel for when connection is closed
 }
 
@@ -52,6 +57,7 @@ func isHeavyLoaded(conn *Conn) bool {
 
 func (p *ConnPool) maybeReplaceWithLessBusyConn(conn *Conn) *Conn {
 	if lb := p.LeastBusyConn(); conn.Waiting()-lb.Waiting() > maxStreamID<<1/10 {
+		p.metrics.ReplacedWithLessBusyConn.Inc()
 		return lb
 	}
 	return conn
@@ -99,8 +105,12 @@ func (p *ConnPool) clearConn(shard int) bool {
 	return conn != nil
 }
 
+func (p *ConnPool) Metrics() PoolMetrics {
+	return p.metrics
+}
+
 func (p *ConnPool) Close() {
-	p.connClosedCh <- _poolCloseShard
+	p.connClosedCh <- poolCloseShard
 }
 
 // closeAll is called by PoolRefiller.
@@ -178,7 +188,7 @@ func (r *PoolRefiller) loop() {
 		case <-timer.C:
 			r.fill()
 		case shard := <-r.pool.connClosedCh:
-			if shard == _poolCloseShard {
+			if shard == poolCloseShard {
 				r.pool.closeAll()
 				return
 			}
