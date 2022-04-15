@@ -60,7 +60,7 @@ func (p *ConnPool) maybeReplaceWithLessBusyConn(conn *Conn) *Conn {
 func (p *ConnPool) LeastBusyConn() *Conn {
 	var (
 		leastBusyConn *Conn
-		minBusy       = maxStreamID
+		minBusy       = maxStreamID + 2 // adding 2 more is required due to atomics
 	)
 
 	for i := range p.conns {

@@ -60,10 +60,12 @@ func (q *Query) AsyncExec() {
 	q.asyncExec(conn, stmt, nil, h)
 }
 
+var ErrNoQueryResults = fmt.Errorf("no query results to be fetched")
+
 // Fetch returns results in the same order they were queried.
 func (q *Query) Fetch() (Result, error) {
-	if q.pending <= 0 {
-		return Result{}, fmt.Errorf("no query to be fetched")
+	if q.pending == 0 {
+		return Result{}, ErrNoQueryResults
 	}
 
 	h := q.res[0]
