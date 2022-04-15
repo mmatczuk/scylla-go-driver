@@ -3,6 +3,7 @@ package transport
 import (
 	"bufio"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -132,12 +133,12 @@ func (c *connReader) setHandler(h ResponseHandler) (frame.StreamID, error) {
 	defer c.mu.Unlock()
 
 	if c.closed {
-		return 0, fmt.Errorf("%s closed", c.connString())
+		return invalidStreamID, fmt.Errorf("%s closed", c.connString())
 	}
 
 	streamID, err := c.s.Alloc()
 	if err != nil {
-		return 0, fmt.Errorf("%s stream ID alloc: %w", c.connString(), err)
+		return streamID, fmt.Errorf("%s stream ID alloc: %w", c.connString(), err)
 	}
 
 	c.h[streamID] = h
@@ -528,10 +529,16 @@ func (c *Conn) sendRequest(req frame.Request, compress, tracing bool) (frame.Res
 }
 
 func (c *Conn) asyncSendRequest(req frame.Request, compress, tracing bool, h ResponseHandler) {
+try:
 	streamID, err := c.r.setHandler(h)
 	if err != nil {
-		h <- response{Err: fmt.Errorf("set handler %w", err)}
-		return
+		if errors.Is(err, errAllStreamsBusy) {
+			time.Sleep(50 * time.Millisecond)
+			goto try
+		} else {
+			h <- response{Err: fmt.Errorf("set handler %w", err)}
+			return
+		}
 	}
 
 	r := request{

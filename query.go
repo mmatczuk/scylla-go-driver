@@ -60,10 +60,12 @@ func (q *Query) AsyncExec() {
 	q.asyncExec(conn, stmt, nil, h)
 }
 
+var ErrNoQueryResults = fmt.Errorf("no query results to be fetched")
+
 // Fetch returns results in the same order they were queried.
 func (q *Query) Fetch() (Result, error) {
-	if q.pending <= 0 {
-		return Result{}, fmt.Errorf("no query to be fetched")
+	if q.pending == 0 {
+		return Result{}, ErrNoQueryResults
 	}
 
 	h := q.res[0]
@@ -112,10 +114,8 @@ func (q *Query) info(token transport.Token, tokenAware bool) transport.QueryInfo
 
 func (q *Query) BindInt64(pos int, v int64) *Query {
 	p := &q.stmt.Values[pos]
-	if p.N == 0 {
-		p.N = 8
-		p.Bytes = make([]byte, 8)
-	}
+	p.N = 8
+	p.Bytes = make([]byte, 8)
 
 	p.Bytes[0] = byte(v >> 56)
 	p.Bytes[1] = byte(v >> 48)

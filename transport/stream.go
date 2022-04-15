@@ -9,8 +9,9 @@ import (
 )
 
 const (
-	maxStreamID   = math.MaxInt16
-	eventStreamID = -1
+	maxStreamID     = math.MaxInt16
+	eventStreamID   = -1
+	invalidStreamID = -10
 
 	bucketSize = 64
 	buckets    = (maxStreamID + 1) / bucketSize
@@ -20,6 +21,8 @@ type streamIDAllocator struct {
 	usedBitmap [buckets]uint64
 }
 
+var errAllStreamsBusy = fmt.Errorf("all stream IDs are busy")
+
 func (s *streamIDAllocator) Alloc() (frame.StreamID, error) {
 	for blockID, block := range &s.usedBitmap {
 		if block < math.MaxUint64 {
@@ -28,7 +31,7 @@ func (s *streamIDAllocator) Alloc() (frame.StreamID, error) {
 			return frame.StreamID(offset + blockID*bucketSize), nil
 		}
 	}
-	return 0, fmt.Errorf("all stream IDs are busy")
+	return invalidStreamID, errAllStreamsBusy
 }
 
 func (s *streamIDAllocator) Free(id frame.StreamID) {

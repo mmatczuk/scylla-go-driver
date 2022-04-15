@@ -41,7 +41,7 @@ func readConfig() Config {
 	flag.Int64Var(
 		&config.tasks,
 		"tasks",
-		1_000_000,
+		10_000,
 		"Total number of tasks (requests) to perform the during benchmark. In case of mixed workload there will be tasks inserts and tasks selects",
 	)
 
