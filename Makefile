@@ -30,6 +30,11 @@ integration-test:
 	@$(MAKE) pkg-integration-test PKG=./transport
 	@$(MAKE) pkg-integration-test PKG=./
 
+.PHONY: integration-bench
+integration-bench: RUN=Integration
+integration-bench:
+	@$(MAKE) pkg-integration-test RUN=XXX PKG=./ ARGS='-test.bench=$(RUN) -test.benchmem -test.benchtime=5s $(ARGS)'
+
 # Prevent invoking make with a package specific test without a constraining a package.
 ifneq "$(filter pkg-%,$(MAKECMDGOALS))" ""
 ifeq "$(PKG)" ""
@@ -41,13 +46,13 @@ endif
 pkg-integration-test: RUN=Integration
 pkg-integration-test:
 ifeq ($(OS),Linux)
-	go test -v -tags integration -run $(RUN) -short $(PKG) $(ARGS)
+	@go test -v -tags integration -run $(RUN) $(PKG) $(ARGS)
 else ifeq ($(OS),Darwin)
 	@CGO_ENABLED=0 GOOS=linux go test -v -tags integration -c -o ./integration-test.dev $(PKG)
 	@docker run --name "integration-test" \
 		--network scylla_go_driver_public \
 		-v "$(PWD)/integration-test.dev:/usr/bin/integration-test:ro" \
-		-it --read-only --rm ubuntu integration-test -test.v -test.run $(RUN) -test.short $(ARGS)
+		-it --read-only --rm ubuntu integration-test -test.v -test.run $(RUN) $(ARGS)
 else
 	$(error Unsupported OS $(OS))
 endif
@@ -67,11 +72,6 @@ else ifeq ($(OS),Darwin)
 else
 	$(error Unsupported OS $(OS))
 endif
-
-integration-bench: RUN=Integration
-integration-bench:
-	go test -v -tags integration -run XXX -bench=$(RUN) -benchmem -benchtime=5s -cpuprofile cpu.out ./transport $(ARGS)
-	go tool pprof -http :8080 cpu.out
 
 .PHONY: scylla-up
 scylla-up:
