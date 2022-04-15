@@ -58,7 +58,7 @@ else
 endif
 
 .PHONY: run-benchtab
-run-benchtab: CPUSET=6,7
+run-benchtab: CPUSET=4-5
 run-benchtab:
 ifeq ($(OS),Linux)
 	@taskset -c $(CPUSET) go run ./experiments/cmd/benchtab -nodes "192.168.100.100:9042"

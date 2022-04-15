@@ -2,7 +2,7 @@ version: "3.7"
 
 services:
   node:
-    cpuset: "0-5"
+    cpuset: "0-3"
     image: ${SCYLLA_IMAGE}:${SCYLLA_VERSION}
     command: ${SCYLLA_ARGS}
     ports:
