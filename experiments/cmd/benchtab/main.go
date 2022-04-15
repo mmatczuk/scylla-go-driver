@@ -14,7 +14,7 @@ const insertStmt = "INSERT INTO benchks.benchtab (pk, v1, v2) VALUES(?, ?, ?)"
 const selectStmt = "SELECT v1, v2 FROM benchks.benchtab WHERE pk = ?"
 
 func main() {
-	p := profile.Start(profile.CPUProfile, profile.ProfilePath("/pprof/"), profile.NoShutdownHook)
+	p := profile.Start(profile.CPUProfile, profile.ProfilePath("pprof/"), profile.NoShutdownHook)
 	defer p.Stop()
 
 	config := readConfig()

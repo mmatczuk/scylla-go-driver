@@ -56,13 +56,15 @@ endif
 run-benchtab: CPUSET=4-5
 run-benchtab:
 ifeq ($(OS),Linux)
-	# TODO add runner remember taskset
+	@go build -trimpath -ldflags "-extldflags '-static'" -o ./benchtab.dev ./experiments/cmd/benchtab
+	@(cd experiments; taskset -c 2,3 ../benchtab.dev -nodes "192.168.100.100:9042")
 else ifeq ($(OS),Darwin)
 	@CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-extldflags '-static'" -o ./benchtab.dev ./experiments/cmd/benchtab
 	@docker run --name "benchtab" \
 		--network scylla_go_driver_public \
 		-v "$(PWD)/benchtab.dev:/usr/bin/benchtab:ro" \
-		-v "$(PWD)/experiments/pprof:/pprof" \
+		-w "$(PWD)/experiments" \
+		-v "$(PWD)/experiments/pprof:$(PWD)/experiments/pprof" \
 		-it --read-only --rm --cpuset-cpus $(CPUSET) ubuntu benchtab -nodes "192.168.100.100:9042"
 else
 	$(error Unsupported OS $(OS))
