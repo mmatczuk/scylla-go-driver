@@ -38,7 +38,7 @@ type request struct {
 
 var _connCloseRequest = request{}
 
-type connMetrics struct {
+type ConnMetrics struct {
 	InFlight atomic.Uint32
 	InQueue  atomic.Uint32
 }
@@ -47,7 +47,7 @@ type connWriter struct {
 	conn       *bufio.Writer
 	buf        frame.Buffer
 	requestCh  chan request
-	metrics    *connMetrics
+	metrics    *ConnMetrics
 	connString func() string
 	connClose  func()
 }
@@ -117,7 +117,7 @@ type connReader struct {
 	conn        io.LimitedReader
 	buf         frame.Buffer
 	bufw        io.Writer
-	metrics     *connMetrics
+	metrics     *ConnMetrics
 	handleEvent func(r response)
 	connString  func() string
 	connClose   func()
@@ -262,7 +262,7 @@ type Conn struct {
 	shard     uint16
 	w         connWriter
 	r         connReader
-	metrics   *connMetrics
+	metrics   *ConnMetrics
 	closeOnce sync.Once
 	onClose   func(conn *Conn)
 }
@@ -338,7 +338,7 @@ func OpenConn(addr string, localAddr *net.TCPAddr, cfg ConnConfig) (*Conn, error
 // WrapConn transforms tcp connection to a working Scylla connection.
 // If error and connection are returned the connection is not valid and must be closed by the caller.
 func WrapConn(conn net.Conn, cfg ConnConfig) (*Conn, error) {
-	m := new(connMetrics)
+	m := new(ConnMetrics)
 
 	c := new(Conn)
 	*c = Conn{
@@ -616,6 +616,10 @@ func (c *Conn) Waiting() int {
 
 func (c *Conn) setOnClose(f func(conn *Conn)) {
 	c.onClose = f
+}
+
+func (c *Conn) Metrics() ConnMetrics {
+	return *c.metrics
 }
 
 func (c *Conn) Shard() int {
