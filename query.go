@@ -14,7 +14,6 @@ type Query struct {
 	exec      func(*transport.Conn, transport.Statement, frame.Bytes) (transport.QueryResult, error)
 	asyncExec func(*transport.Conn, transport.Statement, frame.Bytes, transport.ResponseHandler)
 	res       []transport.ResponseHandler
-	pending   uint32
 }
 
 func (q *Query) Exec() (Result, error) {
@@ -47,7 +46,6 @@ func (q *Query) pickConn() (*transport.Conn, error) {
 
 func (q *Query) AsyncExec() {
 	stmt := q.stmt.Clone()
-	q.pending++
 
 	conn, err := q.pickConn()
 	if err != nil {
@@ -64,13 +62,12 @@ var ErrNoQueryResults = fmt.Errorf("no query results to be fetched")
 
 // Fetch returns results in the same order they were queried.
 func (q *Query) Fetch() (Result, error) {
-	if q.pending == 0 {
+	if len(q.res) == 0 {
 		return Result{}, ErrNoQueryResults
 	}
 
 	h := q.res[0]
 	q.res = q.res[1:]
-	q.pending--
 
 	resp := <-h
 	if resp.Err != nil {
