@@ -468,16 +468,16 @@ func (c *Conn) AuthResponse(a *Authenticate) error {
 		}
 		switch v := res.(type) {
 		case *AuthSuccess:
-			log.Printf("successfully authenticated connection: %s", c.String())
+			log.Printf("%s successfully authenticated", c.String())
+			return nil
 		case *AuthChallenge:
-			log.Fatalf("authentication challenge is not yet supported: %#+v", v)
+			return fmt.Errorf("authentication challenge is not yet supported: %#+v", v)
 		default:
-			log.Fatalf("authentication: %v", responseAsError(v))
+			return fmt.Errorf("authentication: %v", responseAsError(v))
 		}
 	} else {
-		log.Fatalf("authenticator not supported: %s", a.Name)
+		return fmt.Errorf("authenticator not supported: %s", a.Name)
 	}
-	return nil
 }
 
 func (c *Conn) UseKeyspace(ks string) error {
