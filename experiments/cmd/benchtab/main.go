@@ -7,17 +7,15 @@ import (
 	"time"
 
 	"github.com/mmatczuk/scylla-go-driver"
-	"github.com/pkg/profile"
 )
 
 const insertStmt = "INSERT INTO benchks.benchtab (pk, v1, v2) VALUES(?, ?, ?)"
 const selectStmt = "SELECT v1, v2 FROM benchks.benchtab WHERE pk = ?"
 
 func main() {
-	p := profile.Start(profile.CPUProfile, profile.ProfilePath("pprof/"), profile.NoShutdownHook)
-	defer p.Stop()
-
 	config := readConfig()
+	log.Printf("Config %#+v", config)
+
 	if !config.dontPrepare {
 		initSession, err := scylla.NewSession(scylla.DefaultSessionConfig("", config.nodeAddresses...))
 		if err != nil {
@@ -34,61 +32,84 @@ func main() {
 		initSelectsBenchmark(session, config)
 	}
 
+	var wg sync.WaitGroup
+	nextBatchStart := int64(0)
+
 	log.Println("Starting the benchmark")
 	startTime := time.Now()
 
-	insertQ, err := session.Prepare(insertStmt)
-	if err != nil {
-		log.Fatal(err)
-	}
-	selectQ, err := session.Prepare(selectStmt)
-	if err != nil {
-		log.Fatal(err)
-	}
+	for i := int64(0); i < config.workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 
-	if config.workload == Inserts || config.workload == Mixed {
-		for pk := int64(0); pk < config.tasks; pk++ {
-			insertQ.BindInt64(0, pk)
-			insertQ.BindInt64(1, 2*pk)
-			insertQ.BindInt64(2, 3*pk)
-			insertQ.AsyncExec()
-		}
-		for pk := int64(0); pk < config.tasks; pk++ {
-			if _, err := insertQ.Fetch(); err != nil {
+			insertQ, err := session.Prepare(insertStmt)
+			if err != nil {
 				log.Fatal(err)
 			}
-		}
-	}
-	if config.workload == Selects || config.workload == Mixed {
-		for pk := int64(0); pk < config.tasks; pk++ {
-			selectQ.BindInt64(0, pk)
-			selectQ.AsyncExec()
-		}
-		for pk := int64(0); pk < config.tasks; pk++ {
-			res, err := selectQ.Fetch()
+			selectQ, err := session.Prepare(selectStmt)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			if len(res.Rows) != 1 {
-				log.Fatalf("expected 1 row, got %d", len(res.Rows))
-			}
+			for {
+				curBatchStart := atomic.AddInt64(&nextBatchStart, config.batchSize)
+				if curBatchStart >= config.tasks {
+					// no more work to do
+					break
+				}
 
-			v1, err := res.Rows[0][0].AsInt64()
-			if err != nil {
-				log.Fatal(err)
+				curBatchEnd := min(curBatchStart+config.batchSize, config.tasks)
+
+				if config.workload == Inserts || config.workload == Mixed {
+					for pk := curBatchStart; pk < curBatchEnd; pk++ {
+						insertQ.BindInt64(0, pk)
+						insertQ.BindInt64(1, 2*pk)
+						insertQ.BindInt64(2, 3*pk)
+						insertQ.AsyncExec()
+					}
+					for pk := curBatchStart; pk < curBatchEnd; pk++ {
+						if _, err := insertQ.Fetch(); err != nil {
+							log.Fatal(err)
+						}
+					}
+				}
+
+				if config.workload == Selects || config.workload == Mixed {
+					for pk := curBatchStart; pk < curBatchEnd; pk++ {
+						selectQ.BindInt64(0, pk)
+						selectQ.AsyncExec()
+					}
+					for pk := curBatchStart; pk < curBatchEnd; pk++ {
+						res, err := selectQ.Fetch()
+						if err != nil {
+							log.Fatal(err)
+						}
+
+						if len(res.Rows) != 1 {
+							log.Fatalf("expected 1 row, got %d", len(res.Rows))
+						}
+
+						v1, err := res.Rows[0][0].AsInt64()
+						if err != nil {
+							log.Fatal(err)
+						}
+						v2, err := res.Rows[0][1].AsInt64()
+						if err != nil {
+							log.Fatal(err)
+						}
+						if v1 != 2*pk || v2 != 3*pk {
+							log.Fatalf("expected (%d, %d), got (%d, %d)", 2*pk, 3*pk, v1, v2)
+						}
+					}
+				}
 			}
-			v2, err := res.Rows[0][1].AsInt64()
-			if err != nil {
-				log.Fatal(err)
-			}
-			if v1 != 2*pk || v2 != 3*pk {
-				log.Fatalf("expected (%d, %d), got (%d, %d)", 2*pk, 3*pk, v1, v2)
-			}
-		}
+		}()
 	}
 
+	wg.Wait()
 	benchTime := time.Now().Sub(startTime)
+
 	log.Printf("Finished\nBenchmark time: %d ms\n", benchTime.Milliseconds())
 }
 
@@ -115,7 +136,7 @@ func initSelectsBenchmark(session *scylla.Session, config Config) {
 	var wg sync.WaitGroup
 	nextBatchStart := int64(0)
 
-	for i := int64(0); i < max(1024, config.concurrency); i++ {
+	for i := int64(0); i < max(1024, config.workers); i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"runtime"
 	"strings"
 )
 
@@ -18,7 +19,7 @@ type Config struct {
 	nodeAddresses []string
 	workload      Workload
 	tasks         int64
-	concurrency   int64
+	workers       int64
 	batchSize     int64
 	dontPrepare   bool
 }
@@ -46,10 +47,10 @@ func readConfig() Config {
 	)
 
 	flag.Int64Var(
-		&config.concurrency,
-		"concurrency",
-		1024,
-		"Maximum number of requests performed at once",
+		&config.workers,
+		"workers",
+		int64(runtime.NumCPU()),
+		"Maximum number of workers, default nr of CPUs",
 	)
 
 	flag.BoolVar(
@@ -58,6 +59,8 @@ func readConfig() Config {
 		false,
 		"Don't create tables and insert into them before the benchmark",
 	)
+
+	config.batchSize = config.tasks / config.workers
 
 	flag.Parse()
 
@@ -76,8 +79,6 @@ func readConfig() Config {
 		log.Fatal("invalid workload type")
 	}
 
-	config.batchSize = int64(256)
-
 	max := func(a, b int64) int64 {
 		if a > b {
 			return a
@@ -86,8 +87,8 @@ func readConfig() Config {
 		return b
 	}
 
-	if config.tasks/config.batchSize < config.concurrency {
-		config.batchSize = max(1, config.tasks/config.concurrency)
+	if config.tasks/config.batchSize < config.workers {
+		config.batchSize = max(1, config.tasks/config.workers)
 	}
 
 	return config
