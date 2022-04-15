@@ -112,8 +112,10 @@ func (q *Query) info(token transport.Token, tokenAware bool) transport.QueryInfo
 
 func (q *Query) BindInt64(pos int, v int64) *Query {
 	p := &q.stmt.Values[pos]
-	p.N = 8
-	p.Bytes = make([]byte, 8)
+	if p.N == 0 {
+		p.N = 8
+		p.Bytes = make([]byte, 8)
+	}
 
 	p.Bytes[0] = byte(v >> 56)
 	p.Bytes[1] = byte(v >> 48)

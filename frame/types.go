@@ -26,6 +26,17 @@ type Value struct {
 	Bytes Bytes
 }
 
+func (v Value) Clone() Value {
+	c := Value{
+		N: v.N,
+	}
+	if len(v.Bytes) != 0 {
+		c.Bytes = make(Bytes, len(v.Bytes))
+		copy(c.Bytes, v.Bytes)
+	}
+	return c
+}
+
 // https://github.com/apache/cassandra/blob/trunk/doc/native_protocol_v4.spec#L241-L245
 type Inet struct {
 	IP   Bytes

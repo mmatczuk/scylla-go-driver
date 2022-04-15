@@ -21,10 +21,14 @@ type Statement struct {
 }
 
 func (s Statement) Clone() Statement {
-	v := s
-	v.Values = make([]frame.Value, len(s.Values))
-	copy(v.Values, s.Values)
-	return v
+	c := s
+	if len(s.Values) != 0 {
+		c.Values = make([]frame.Value, len(s.Values))
+		for i := range s.Values {
+			c.Values[i] = s.Values[i].Clone()
+		}
+	}
+	return c
 }
 
 func makeQuery(s Statement, pagingState frame.Bytes) Query {
