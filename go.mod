@@ -9,6 +9,6 @@ require (
 	go.uber.org/goleak v1.1.12
 )
 
-require github.com/pkg/profile v1.6.0 // indirect
+require github.com/pkg/profile v1.6.0
 
 replace github.com/google/btree => github.com/Michal-Leszczynski/btree v1.0.2-0.20220412174850-ff8ccb34568a
