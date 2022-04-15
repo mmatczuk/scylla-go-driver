@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mmatczuk/scylla-go-driver/frame"
@@ -168,6 +169,7 @@ func NewCluster(cfg ConnConfig, e []frame.EventType, hosts ...string) (*Cluster,
 
 func (c *Cluster) NewControl() (*Conn, error) {
 	log.Printf("cluster: open control connection")
+	errs := make([]string, 0)
 	for _, addr := range c.knownHosts {
 		conn, err := OpenConn(addr, nil, c.cfg)
 		if err == nil {
@@ -175,16 +177,18 @@ func (c *Cluster) NewControl() (*Conn, error) {
 				return conn, nil
 			} else {
 				log.Printf("cluster: open control connection: node %s failed to register for events: %v", conn, err)
+				errs = append(errs, fmt.Sprintf("node %s failed to register for events: %v", conn, err))
 			}
 		} else {
 			log.Printf("cluster: open control connection: node %s failed to connect: %v", addr, err)
+			errs = append(errs, fmt.Sprintf("node %s failed to connect: %v", addr, err))
 		}
 		if conn != nil {
 			conn.Close()
 		}
 	}
 
-	return nil, fmt.Errorf("couldn't open control connection to any known host: %v", c.knownHosts)
+	return nil, fmt.Errorf("couldn't open control connection to any known host:\n%s", strings.Join(errs, "\n"))
 }
 
 // refreshTopology creates new topology filled with the result of keyspaceQuery, localQuery and peerQuery.
