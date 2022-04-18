@@ -79,6 +79,21 @@ func DefaultSessionConfig(keyspace string, hosts ...string) SessionConfig {
 	}
 }
 
+func DefaultAuthSessionConfig(username, password, keyspace string, hosts ...string) SessionConfig {
+	return SessionConfig{
+		Hosts:  hosts,
+		Policy: TokenAware,
+		ConnConfig: transport.ConnConfig{
+			Username:           username,
+			Password:           password,
+			Keyspace:           keyspace,
+			Timeout:            500 * time.Millisecond,
+			TCPNoDelay:         true,
+			DefaultConsistency: LOCALQUORUM,
+		},
+	}
+}
+
 type SessionConfig struct {
 	Hosts   []string
 	Events  []EventType

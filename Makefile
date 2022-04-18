@@ -58,10 +58,10 @@ else
 endif
 
 .PHONY: run-benchtab
-run-benchtab: CPUSET=4-5
+run-benchtab: CPUSET=2-3
 run-benchtab:
 ifeq ($(OS),Linux)
-	@taskset -c $(CPUSET) go run ./experiments/cmd/benchtab -nodes "192.168.100.100:9042"
+	@taskset -c $(CPUSET) go run ./experiments/cmd/benchtab -nodes "3.95.130.223:9042,18.210.114.184:9042,100.26.96.166:9042"
 else ifeq ($(OS),Darwin)
 	@CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags "-extldflags '-static'" -o ./benchtab.dev ./experiments/cmd/benchtab
 	@docker run --name "benchtab" \

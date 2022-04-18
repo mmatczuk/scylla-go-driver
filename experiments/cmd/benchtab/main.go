@@ -17,14 +17,33 @@ func main() {
 	log.Printf("Config %#+v", config)
 
 	if !config.dontPrepare {
-		initSession, err := scylla.NewSession(scylla.DefaultSessionConfig("", config.nodeAddresses...))
+		var (
+			initSession *scylla.Session
+			err         error
+		)
+		if config.username != "" {
+			initSession, err = scylla.NewSession(scylla.DefaultAuthSessionConfig(config.username, config.password, "", config.nodeAddresses...))
+		} else {
+			initSession, err = scylla.NewSession(scylla.DefaultSessionConfig("", config.nodeAddresses...))
+		}
+
 		if err != nil {
 			log.Fatal(err)
 		}
 		initKeyspaceAndTable(initSession)
 	}
 
-	session, err := scylla.NewSession(scylla.DefaultSessionConfig("benchks", config.nodeAddresses...))
+	var (
+		session *scylla.Session
+		err     error
+	)
+
+	if config.username != "" {
+		session, err = scylla.NewSession(scylla.DefaultAuthSessionConfig(config.username, config.password, "benchks", config.nodeAddresses...))
+	} else {
+		session, err = scylla.NewSession(scylla.DefaultSessionConfig("benchks", config.nodeAddresses...))
+	}
+
 	if err != nil {
 		log.Fatal(err)
 	}

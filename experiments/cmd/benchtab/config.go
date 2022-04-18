@@ -22,6 +22,8 @@ type Config struct {
 	workers       int64
 	batchSize     int64
 	dontPrepare   bool
+	username      string
+	password      string
 }
 
 func readConfig() Config {
@@ -29,7 +31,7 @@ func readConfig() Config {
 
 	nodes := flag.String(
 		"nodes",
-		"",
+		"3.95.130.223:9042,18.210.114.184:9042,100.26.96.166:9042",
 		"Addresses of database nodes to connect to separated by a comma",
 	)
 
@@ -58,6 +60,18 @@ func readConfig() Config {
 		"dont-prepare",
 		false,
 		"Don't create tables and insert into them before the benchmark",
+	)
+
+	config.username = *flag.String(
+		"cloud username",
+		"scylla",
+		"username to connect to scylla cloud",
+	)
+
+	config.password = *flag.String(
+		"cloud password",
+		"YFv0uHSh7tk4mof",
+		"password to connect to scylla cloud",
 	)
 
 	config.batchSize = config.tasks / config.workers
