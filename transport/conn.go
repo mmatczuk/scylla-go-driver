@@ -51,6 +51,12 @@ type connWriter struct {
 	metrics    *ConnMetrics
 	connString func() string
 	connClose  func()
+
+	coalesceWaitTime     time.Duration
+	maxCoalescedRequests int
+	avgNumerator         int
+	avgDenumerator       int
+	cappedCnt            int
 }
 
 func (c *connWriter) submit(r request) {
@@ -60,13 +66,17 @@ func (c *connWriter) submit(r request) {
 
 func (c *connWriter) loop() {
 	for {
+		time.Sleep(c.coalesceWaitTime)
 		size := len(c.requestCh)
-		if size > maxCoalescedRequests {
-			size = maxCoalescedRequests
+		if size > c.maxCoalescedRequests {
+			c.cappedCnt++
+			size = c.maxCoalescedRequests
 		} else if size == 0 {
 			size = 1
 		}
 
+		c.avgNumerator += size
+		c.avgDenumerator++
 		for i := 0; i < size; i++ {
 			r := <-c.requestCh
 			if r == _connCloseRequest {
@@ -269,32 +279,35 @@ type Conn struct {
 }
 
 type ConnConfig struct {
-	Username           string
-	Password           string
-	Keyspace           string
-	TCPNoDelay         bool
-	Timeout            time.Duration
-	DefaultConsistency frame.Consistency
-	DefaultPort        string
+	Username              string
+	Password              string
+	Keyspace              string
+	TCPNoDelay            bool
+	Timeout               time.Duration
+	DefaultConsistency    frame.Consistency
+	DefaultPort           string
+	MaxCoalescedRequests  int
+	WriteCoalesceWaitTime time.Duration
 }
 
 func DefaultConnConfig(keyspace string) ConnConfig {
 	return ConnConfig{
-		Username:           "cassandra",
-		Password:           "cassandra",
-		Keyspace:           keyspace,
-		TCPNoDelay:         true,
-		Timeout:            500 * time.Millisecond,
-		DefaultConsistency: frame.LOCALQUORUM,
-		DefaultPort:        "9042",
+		Username:              "cassandra",
+		Password:              "cassandra",
+		Keyspace:              keyspace,
+		TCPNoDelay:            true,
+		Timeout:               500 * time.Millisecond,
+		DefaultConsistency:    frame.LOCALQUORUM,
+		DefaultPort:           "9042",
+		MaxCoalescedRequests:  100,
+		WriteCoalesceWaitTime: time.Millisecond,
 	}
 }
 
 const (
-	requestChanSize      = maxStreamID / 2
-	targetWaiting        = requestChanSize
-	maxCoalescedRequests = 100
-	ioBufferSize         = 8192
+	requestChanSize = maxStreamID / 2
+	targetWaiting   = requestChanSize
+	ioBufferSize    = 8192
 )
 
 // OpenShardConn opens connection mapped to a specific shard on Scylla node.
@@ -360,11 +373,13 @@ func WrapConn(conn net.Conn, cfg ConnConfig) (*Conn, error) {
 		cfg:  cfg,
 		conn: conn,
 		w: connWriter{
-			conn:       bufio.NewWriterSize(conn, ioBufferSize),
-			requestCh:  make(chan request, requestChanSize),
-			metrics:    m,
-			connString: c.String,
-			connClose:  c.Close,
+			conn:                 bufio.NewWriterSize(conn, ioBufferSize),
+			requestCh:            make(chan request, requestChanSize),
+			metrics:              m,
+			connString:           c.String,
+			connClose:            c.Close,
+			maxCoalescedRequests: cfg.MaxCoalescedRequests,
+			coalesceWaitTime:     cfg.WriteCoalesceWaitTime,
 		},
 		r: connReader{
 			conn: io.LimitedReader{
@@ -666,6 +681,11 @@ func (c *Conn) Close() {
 		c.w.requestCh <- _connCloseRequest
 		if c.onClose != nil {
 			c.onClose(c)
+		}
+
+		if c.w.avgDenumerator > 0 {
+			log.Printf("closing conn - avg total requests sent=%d, flushes=%d, avg per flush=%f, capped=%d\n",
+				c.w.avgNumerator, c.w.avgDenumerator, float32(c.w.avgNumerator)/float32(c.w.avgDenumerator), c.w.cappedCnt)
 		}
 	})
 }
