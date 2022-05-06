@@ -57,6 +57,11 @@ var (
 	errNoConnection = fmt.Errorf("no working connection")
 )
 
+const (
+	MovingAverageStrategy = transport.MovingAverageStrategy
+	FixedStrategy         = transport.FixedStrategy
+)
+
 type SessionConfig struct {
 	Hosts  []string
 	Events []EventType

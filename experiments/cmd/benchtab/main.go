@@ -32,6 +32,9 @@ func main() {
 	cfg := scylla.DefaultSessionConfig("", config.nodeAddresses...)
 	cfg.Username = config.user
 	cfg.Password = config.password
+	cfg.CoalescingStrategy = config.coalescingStrategy
+	cfg.MaxCoalesceWaitTime = time.Duration(config.maxCoalesceWaitTime) * time.Microsecond
+	cfg.MaxCoalescedRequests = config.maxCoalescedRequests
 
 	if !config.dontPrepare {
 		initSession, err := scylla.NewSession(cfg)

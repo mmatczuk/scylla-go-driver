@@ -4,6 +4,8 @@ import (
 	"flag"
 	"log"
 	"strings"
+
+	"github.com/mmatczuk/scylla-go-driver"
 )
 
 type Workload int
@@ -15,17 +17,20 @@ const (
 )
 
 type Config struct {
-	nodeAddresses []string
-	workload      Workload
-	user          string
-	password      string
-	tasks         int64
-	workers       int64
-	batchSize     int64
-	dontPrepare   bool
-	async         bool
-	profileCPU    bool
-	profileMem    bool
+	nodeAddresses        []string
+	workload             Workload
+	user                 string
+	password             string
+	tasks                int64
+	workers              int64
+	batchSize            int64
+	dontPrepare          bool
+	async                bool
+	profileCPU           bool
+	profileMem           bool
+	coalescingStrategy   int
+	maxCoalesceWaitTime  int // in microseconds.
+	maxCoalescedRequests int
 }
 
 func readConfig() Config {
@@ -104,6 +109,27 @@ func readConfig() Config {
 		"profile-mem",
 		false,
 		"Use memory profiling",
+	)
+
+	flag.IntVar(
+		&config.coalescingStrategy,
+		"coalesce-strategy",
+		scylla.MovingAverageStrategy,
+		"Use coalescing strategy",
+	)
+
+	flag.IntVar(
+		&config.maxCoalesceWaitTime,
+		"waittime",
+		1000,
+		"Maximum pile-up wait in coalescing",
+	)
+
+	flag.IntVar(
+		&config.maxCoalescedRequests,
+		"max-coalesce",
+		100,
+		"Maximum number of frames to coalesce",
 	)
 
 	flag.Parse()
