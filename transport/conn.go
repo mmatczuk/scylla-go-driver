@@ -44,6 +44,49 @@ type ConnMetrics struct {
 	InQueue  atomic.Uint32
 }
 
+type coalescingStrategy struct {
+	gaps  [16]time.Duration
+	pos   int
+	total time.Duration
+
+	last  time.Time
+	ready bool
+}
+
+const (
+	maxCoalesceWaitTime  = time.Millisecond
+	maxCoalescedRequests = 100
+)
+
+func (cs *coalescingStrategy) apply() {
+	if cs.ready {
+		waitTime := 2 * cs.total / 16
+		if waitTime > maxCoalesceWaitTime {
+			waitTime = maxCoalesceWaitTime
+		}
+
+		time.Sleep(waitTime)
+	}
+}
+
+func (cs *coalescingStrategy) update() {
+	if cs.last.IsZero() {
+		cs.last = time.Now()
+		return
+	}
+
+	gap := time.Since(cs.last)
+	cs.last = time.Now()
+	cs.total += gap - cs.gaps[cs.pos]
+	cs.gaps[cs.pos] = gap
+
+	cs.pos++
+	if cs.pos == 16 {
+		cs.ready = true
+		cs.pos = 0
+	}
+}
+
 type connWriter struct {
 	conn       *bufio.Writer
 	buf        frame.Buffer
@@ -52,11 +95,7 @@ type connWriter struct {
 	connString func() string
 	connClose  func()
 
-	coalesceWaitTime     time.Duration
-	maxCoalescedRequests int
-	avgNumerator         int
-	avgDenumerator       int
-	cappedCnt            int
+	coalescingStrategy coalescingStrategy
 }
 
 func (c *connWriter) submit(r request) {
@@ -66,23 +105,21 @@ func (c *connWriter) submit(r request) {
 
 func (c *connWriter) loop() {
 	for {
-		time.Sleep(c.coalesceWaitTime)
+		c.coalescingStrategy.apply()
 		size := len(c.requestCh)
-		if size > c.maxCoalescedRequests {
-			c.cappedCnt++
-			size = c.maxCoalescedRequests
+		if size > maxCoalescedRequests {
+			size = maxCoalescedRequests
 		} else if size == 0 {
 			size = 1
 		}
 
-		c.avgNumerator += size
-		c.avgDenumerator++
 		for i := 0; i < size; i++ {
 			r := <-c.requestCh
 			if r == _connCloseRequest {
 				return
 			}
 			c.metrics.InQueue.Dec()
+			c.coalescingStrategy.update()
 			if err := c.send(r); err != nil {
 				log.Printf("%s fatal send error, closing connection due to %s", c.connString(), err)
 				r.ResponseHandler <- response{Err: fmt.Errorf("%s send: %w", c.connString(), err)}
@@ -279,28 +316,24 @@ type Conn struct {
 }
 
 type ConnConfig struct {
-	Username              string
-	Password              string
-	Keyspace              string
-	TCPNoDelay            bool
-	Timeout               time.Duration
-	DefaultConsistency    frame.Consistency
-	DefaultPort           string
-	MaxCoalescedRequests  int
-	WriteCoalesceWaitTime time.Duration
+	Username           string
+	Password           string
+	Keyspace           string
+	TCPNoDelay         bool
+	Timeout            time.Duration
+	DefaultConsistency frame.Consistency
+	DefaultPort        string
 }
 
 func DefaultConnConfig(keyspace string) ConnConfig {
 	return ConnConfig{
-		Username:              "cassandra",
-		Password:              "cassandra",
-		Keyspace:              keyspace,
-		TCPNoDelay:            true,
-		Timeout:               500 * time.Millisecond,
-		DefaultConsistency:    frame.LOCALQUORUM,
-		DefaultPort:           "9042",
-		MaxCoalescedRequests:  100,
-		WriteCoalesceWaitTime: time.Millisecond,
+		Username:           "cassandra",
+		Password:           "cassandra",
+		Keyspace:           keyspace,
+		TCPNoDelay:         true,
+		Timeout:            500 * time.Millisecond,
+		DefaultConsistency: frame.LOCALQUORUM,
+		DefaultPort:        "9042",
 	}
 }
 
@@ -373,13 +406,11 @@ func WrapConn(conn net.Conn, cfg ConnConfig) (*Conn, error) {
 		cfg:  cfg,
 		conn: conn,
 		w: connWriter{
-			conn:                 bufio.NewWriterSize(conn, ioBufferSize),
-			requestCh:            make(chan request, requestChanSize),
-			metrics:              m,
-			connString:           c.String,
-			connClose:            c.Close,
-			maxCoalescedRequests: cfg.MaxCoalescedRequests,
-			coalesceWaitTime:     cfg.WriteCoalesceWaitTime,
+			conn:       bufio.NewWriterSize(conn, ioBufferSize),
+			requestCh:  make(chan request, requestChanSize),
+			metrics:    m,
+			connString: c.String,
+			connClose:  c.Close,
 		},
 		r: connReader{
 			conn: io.LimitedReader{
@@ -681,11 +712,6 @@ func (c *Conn) Close() {
 		c.w.requestCh <- _connCloseRequest
 		if c.onClose != nil {
 			c.onClose(c)
-		}
-
-		if c.w.avgDenumerator > 0 {
-			log.Printf("closing conn - avg total requests sent=%d, flushes=%d, avg per flush=%f, capped=%d\n",
-				c.w.avgNumerator, c.w.avgDenumerator, float32(c.w.avgNumerator)/float32(c.w.avgDenumerator), c.w.cappedCnt)
 		}
 	})
 }

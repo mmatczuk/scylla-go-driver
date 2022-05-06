@@ -26,8 +26,6 @@ type Config struct {
 	async         bool
 	profileCPU    bool
 	profileMem    bool
-	waitTime      int // in microseconds
-	maxCoalesced  int
 }
 
 func readConfig() Config {
@@ -106,20 +104,6 @@ func readConfig() Config {
 		"profile-mem",
 		false,
 		"Use memory profiling",
-	)
-
-	flag.IntVar(
-		&config.maxCoalesced,
-		"max-coalesced",
-		100,
-		"Maximum number of coalesced requests",
-	)
-
-	flag.IntVar(
-		&config.waitTime,
-		"waittime",
-		0,
-		"Maximum number of coalesced requests",
 	)
 
 	flag.Parse()
