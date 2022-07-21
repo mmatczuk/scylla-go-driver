@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math"
@@ -23,15 +24,19 @@ type ConnPool struct {
 	connObs      ConnObserver
 }
 
-func NewConnPool(host string, cfg ConnConfig) (*ConnPool, error) {
-	r := PoolRefiller{
-		cfg: cfg,
-	}
-	if err := r.init(host); err != nil {
+func NewConnPool(ctx context.Context, host string, cfg ConnConfig) (*ConnPool, error) {
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	go r.loop()
+	r := PoolRefiller{
+		cfg: cfg,
+	}
+	if err := r.init(ctx, host); err != nil {
+		return nil, err
+	}
+
+	go r.loop(ctx)
 
 	return &r.pool, nil
 }
@@ -127,13 +132,13 @@ type PoolRefiller struct {
 	active int
 }
 
-func (r *PoolRefiller) init(host string) error {
+func (r *PoolRefiller) init(ctx context.Context, host string) error {
 	if err := r.cfg.validate(); err != nil {
 		return fmt.Errorf("config validate :%w", err)
 	}
 
 	span := startSpan()
-	conn, err := OpenConn(host, nil, r.cfg)
+	conn, err := OpenConn(ctx, host, nil, r.cfg)
 	span.stop()
 	if err != nil {
 		if conn != nil {
@@ -192,14 +197,14 @@ func (r *PoolRefiller) onConnClose(conn *Conn) {
 
 const fillBackoff = time.Second
 
-func (r *PoolRefiller) loop() {
-	r.fill()
+func (r *PoolRefiller) loop(ctx context.Context) {
+	r.fill(ctx)
 
 	timer := time.NewTicker(fillBackoff)
 	for {
 		select {
 		case <-timer.C:
-			r.fill()
+			r.fill(ctx)
 		case shard := <-r.pool.connClosedCh:
 			if shard == poolCloseShard {
 				r.pool.closeAll()
@@ -208,12 +213,12 @@ func (r *PoolRefiller) loop() {
 			if r.pool.clearConn(shard) {
 				r.active--
 			}
-			r.fill()
+			r.fill(ctx)
 		}
 	}
 }
 
-func (r *PoolRefiller) fill() {
+func (r *PoolRefiller) fill(ctx context.Context) {
 	if !r.needsFilling() {
 		return
 	}
@@ -230,7 +235,7 @@ func (r *PoolRefiller) fill() {
 
 		si.Shard = uint16(i)
 		span := startSpan()
-		conn, err := OpenShardConn(r.addr, si, r.cfg)
+		conn, err := OpenShardConn(ctx, r.addr, si, r.cfg)
 		span.stop()
 		if err != nil {
 			if r.pool.connObs != nil {

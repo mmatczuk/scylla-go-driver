@@ -1,6 +1,7 @@
 package scylla
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -113,14 +114,14 @@ type Session struct {
 	policy  transport.HostSelectionPolicy
 }
 
-func NewSession(cfg SessionConfig) (*Session, error) {
+func NewSession(ctx context.Context, cfg SessionConfig) (*Session, error) {
 	cfg = cfg.Clone()
 
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
-	cluster, err := transport.NewCluster(cfg.ConnConfig, cfg.Policy, cfg.Events, cfg.Hosts...)
+	cluster, err := transport.NewCluster(ctx, cfg.ConnConfig, cfg.Policy, cfg.Events, cfg.Hosts...)
 	if err != nil {
 		return nil, err
 	}

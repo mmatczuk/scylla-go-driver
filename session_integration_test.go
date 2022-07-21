@@ -3,6 +3,7 @@
 package scylla
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -21,7 +22,7 @@ func initKeyspace(t testing.TB) {
 
 	cfg := testingSessionConfig
 	cfg.Keyspace = ""
-	s, err := NewSession(cfg)
+	s, err := NewSession(context.Background(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +38,7 @@ func newTestSession(t testing.TB) *Session {
 	t.Helper()
 
 	initKeyspace(t)
-	s, err := NewSession(testingSessionConfig)
+	s, err := NewSession(context.Background(), testingSessionConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,7 +303,7 @@ func TestTLSIntegration(t *testing.T) {
 				cfg.DefaultPort = "9142"
 			}
 
-			session, err := NewSession(cfg)
+			session, err := NewSession(context.Background(), cfg)
 			if err != nil {
 				t.Fatal(err)
 			}

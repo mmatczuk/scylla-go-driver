@@ -3,6 +3,7 @@
 package transport
 
 import (
+	"context"
 	"math"
 	"testing"
 	"time"
@@ -11,7 +12,7 @@ import (
 const refillerBackoff = 500 * time.Millisecond
 
 func newTestConnPool(t *testing.T) *ConnPool {
-	p, err := NewConnPool(TestHost, DefaultConnConfig(""))
+	p, err := NewConnPool(context.Background(), TestHost, DefaultConnConfig(""))
 	if err != nil {
 		t.Fatal(err)
 	}

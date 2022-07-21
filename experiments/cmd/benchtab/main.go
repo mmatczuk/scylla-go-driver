@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -34,7 +35,7 @@ func main() {
 	cfg.Password = config.password
 
 	if !config.dontPrepare {
-		initSession, err := scylla.NewSession(cfg)
+		initSession, err := scylla.NewSession(context.Background(), cfg)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -43,7 +44,7 @@ func main() {
 	}
 
 	cfg.Keyspace = config.keyspace
-	session, err := scylla.NewSession(cfg)
+	session, err := scylla.NewSession(context.Background(), cfg)
 	if err != nil {
 		log.Fatal(err)
 	}

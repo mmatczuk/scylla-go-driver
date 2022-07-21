@@ -3,6 +3,7 @@
 package transport
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -22,7 +23,7 @@ func TestOpenShardConnIntegration(t *testing.T) {
 
 	for i := uint16(0); i < si.NrShards; i++ {
 		si.Shard = i
-		c, err := OpenShardConn(TestHost+":19042", si, DefaultConnConfig(""))
+		c, err := OpenShardConn(context.Background(), TestHost+":19042", si, DefaultConnConfig(""))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -39,7 +40,7 @@ type connTestHelper struct {
 }
 
 func newConnTestHelper(t testing.TB) *connTestHelper {
-	conn, err := OpenConn(TestHost, nil, DefaultConnConfig(""))
+	conn, err := OpenConn(context.Background(), TestHost, nil, DefaultConnConfig(""))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -219,7 +220,7 @@ func testCompression(t *testing.T, c frame.Compression, toSend []byte) {
 
 	cfg := DefaultConnConfig("")
 	cfg.Compression = c
-	conn, err := OpenConn(TestHost, nil, cfg)
+	conn, err := OpenConn(context.Background(), TestHost, nil, cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
