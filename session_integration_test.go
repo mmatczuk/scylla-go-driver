@@ -3,6 +3,7 @@
 package scylla
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -21,13 +22,13 @@ func initKeyspace(t testing.TB) {
 
 	cfg := testingSessionConfig
 	cfg.Keyspace = ""
-	s, err := NewSession(cfg)
+	s, err := NewSession(context.Background(), cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	q := s.Query("CREATE KEYSPACE IF NOT EXISTS mykeyspace WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 1}")
-	if _, err = q.Exec(); err != nil {
+	if _, err = q.Exec(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	s.Close()
@@ -37,7 +38,7 @@ func newTestSession(t testing.TB) *Session {
 	t.Helper()
 
 	initKeyspace(t)
-	s, err := NewSession(testingSessionConfig)
+	s, err := NewSession(context.Background(), testingSessionConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,14 +59,14 @@ func TestSessionIntegration(t *testing.T) {
 
 	for _, stmt := range stmts {
 		q := session.Query(stmt)
-		if _, err := q.Exec(); err != nil {
+		if _, err := q.Exec(context.Background()); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	q := session.Query("SELECT * FROM mykeyspace.users")
 
-	res, err := q.Exec()
+	res, err := q.Exec(context.Background())
 	if err != nil {
 		t.Fatalf("couldn't query: %v", err)
 	}
@@ -106,30 +107,30 @@ func TestSessionPrepareIntegration(t *testing.T) { // nolint:paralleltest // Int
 
 	for _, stmt := range initStmts {
 		q := session.Query(stmt)
-		if _, err := q.Exec(); err != nil {
+		if _, err := q.Exec(context.Background()); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	insertQuery, err := session.Prepare(insertStmt)
+	insertQuery, err := session.Prepare(context.Background(), insertStmt)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	selectQuery, err := session.Prepare(selectStmt)
+	selectQuery, err := session.Prepare(context.Background(), selectStmt)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	for i := int64(0); i < 100; i++ {
 		insertQuery.BindInt64(0, i).BindInt64(1, 2*i).BindInt64(2, 3*i)
-		res, err := insertQuery.Exec()
+		res, err := insertQuery.Exec(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		selectQuery.BindInt64(0, i)
-		res, err = selectQuery.Exec()
+		res, err = selectQuery.Exec(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -165,12 +166,12 @@ func TestSessionIterIntegration(t *testing.T) { // nolint:paralleltest // Integr
 
 	for _, stmt := range initStmts {
 		q := session.Query(stmt)
-		if _, err := q.Exec(); err != nil {
+		if _, err := q.Exec(context.Background()); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	insertQuery, err := session.Prepare(insertStmt)
+	insertQuery, err := session.Prepare(context.Background(), insertStmt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +180,7 @@ func TestSessionIterIntegration(t *testing.T) { // nolint:paralleltest // Integr
 	for i := int64(0); i < int64(N); i++ {
 		insertQuery.BindInt64(0, i).BindInt64(1, 2*i).BindInt64(2, 3*i)
 
-		if _, err := insertQuery.Exec(); err != nil {
+		if _, err := insertQuery.Exec(context.Background()); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -187,13 +188,13 @@ func TestSessionIterIntegration(t *testing.T) { // nolint:paralleltest // Integr
 	q := session.Query("SELECT * FROM mykeyspace.triples")
 	q.SetPageSize(10)
 
-	p, err := session.Prepare("SELECT * FROM mykeyspace.triples")
+	p, err := session.Prepare(context.Background(), "SELECT * FROM mykeyspace.triples")
 	if err != nil {
 		t.Fatal(err)
 	}
 	p.SetPageSize(10)
 
-	iters := [2]Iter{q.Iter(), p.Iter()}
+	iters := [2]Iter{q.Iter(context.Background()), p.Iter(context.Background())}
 	for _, it := range iters {
 		row, err := it.Next()
 
@@ -302,7 +303,7 @@ func TestTLSIntegration(t *testing.T) {
 				cfg.DefaultPort = "9142"
 			}
 
-			session, err := NewSession(cfg)
+			session, err := NewSession(context.Background(), cfg)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -316,13 +317,13 @@ func TestTLSIntegration(t *testing.T) {
 
 			for _, stmt := range stmts {
 				q := session.Query(stmt)
-				if _, err := q.Exec(); err != nil {
+				if _, err := q.Exec(context.Background()); err != nil {
 					t.Fatal(err)
 				}
 			}
 
 			q := session.Query("SELECT COUNT(*) FROM mykeyspace.users")
-			if r, err := q.Exec(); err != nil {
+			if r, err := q.Exec(context.Background()); err != nil {
 				t.Fatal(err)
 			} else {
 				n, err := r.Rows[0][0].AsInt64()
