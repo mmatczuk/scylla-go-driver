@@ -37,6 +37,8 @@ type request struct {
 	Compress        bool
 	Tracing         bool
 	ResponseHandler ResponseHandler
+
+	ctx context.Context // nolint:containedctx // cancelling sending request can't be done without it.
 }
 
 var _connCloseRequest = request{}
@@ -82,7 +84,7 @@ func (c *connWriter) loop(ctx context.Context) {
 				return
 			}
 			c.stats.inQueue.Dec()
-			if err := c.send(r); err != nil {
+			if err := c.send(ctx, r); err != nil {
 				log.Printf("%s fatal send error, closing connection due to %s", c.connString(), err)
 				r.ResponseHandler <- response{Err: fmt.Errorf("%s send: %w", c.connString(), err)}
 				c.connClose()
@@ -98,7 +100,7 @@ func (c *connWriter) loop(ctx context.Context) {
 	}
 }
 
-func (c *connWriter) send(r request) error {
+func (c *connWriter) send(ctx context.Context, r request) error {
 	c.buf.Reset()
 
 	// Dump request with header to buffer
@@ -115,11 +117,20 @@ func (c *connWriter) send(r request) error {
 	l := uint32(len(b) - frame.HeaderSize)
 	binary.BigEndian.PutUint32(b[5:9], l)
 
+	if ctx.Err() != nil {
+		return fmt.Errorf("send cancelled due to session context cancellation")
+	}
+
+	if r.ctx.Err() != nil {
+		// TODO: maybe log error that it was skipped due to context cancellation.
+		return nil
+	}
+
 	// Send
 	var err error
 	if r.Compress {
 		if c.compr != nil {
-			_, err = c.compr.compress(c.conn, c.buf.BytesBuffer())
+			_, err = c.compr.compress(ctx, c.conn, c.buf.BytesBuffer())
 		} else {
 			return errComprUnspecified
 		}
@@ -494,7 +505,7 @@ func validateKeyspace(keyspace string) error {
 const cqlVersion = "3.0.0"
 
 func (c *Conn) init(ctx context.Context) error {
-	if s, err := c.Supported(); err != nil {
+	if s, err := c.Supported(ctx); err != nil {
 		return fmt.Errorf("supported: %w", err)
 	} else {
 		c.event.Shard = s.ScyllaSupported().Shard
@@ -503,20 +514,20 @@ func (c *Conn) init(ctx context.Context) error {
 	if c.cfg.Compression != "" {
 		opts["COMPRESSION"] = string(c.cfg.Compression)
 	}
-	if err := c.Startup(opts); err != nil {
+	if err := c.Startup(ctx, opts); err != nil {
 		return fmt.Errorf("startup: %w", err)
 	}
 
 	if c.cfg.Keyspace != "" {
-		if err := c.UseKeyspace(c.cfg.Keyspace); err != nil {
+		if err := c.UseKeyspace(ctx, c.cfg.Keyspace); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (c *Conn) Supported() (*Supported, error) {
-	res, err := c.sendRequest(&Options{}, false, false)
+func (c *Conn) Supported(ctx context.Context) (*Supported, error) {
+	res, err := c.sendRequest(ctx, &Options{}, false, false)
 	if err != nil {
 		return nil, err
 	}
@@ -526,8 +537,8 @@ func (c *Conn) Supported() (*Supported, error) {
 	return nil, responseAsError(res)
 }
 
-func (c *Conn) Startup(options frame.StartupOptions) error {
-	res, err := c.sendRequest(&Startup{Options: options}, false, false)
+func (c *Conn) Startup(ctx context.Context, options frame.StartupOptions) error {
+	res, err := c.sendRequest(ctx, &Startup{Options: options}, false, false)
 	if err != nil {
 		return err
 	}
@@ -535,7 +546,7 @@ func (c *Conn) Startup(options frame.StartupOptions) error {
 	case *Ready:
 		return nil
 	case *Authenticate:
-		return c.AuthResponse(v)
+		return c.AuthResponse(ctx, v)
 	default:
 		return responseAsError(res)
 	}
@@ -548,7 +559,7 @@ var approvedAuthenticators = map[string]struct{}{
 	"com.scylladb.auth.TransitionalAuthenticator":     {},
 }
 
-func (c *Conn) AuthResponse(a *Authenticate) error {
+func (c *Conn) AuthResponse(ctx context.Context, a *Authenticate) error {
 	if _, ok := approvedAuthenticators[a.Name]; !ok {
 		return fmt.Errorf("authenticator %q not supported", a.Name)
 	}
@@ -556,7 +567,7 @@ func (c *Conn) AuthResponse(a *Authenticate) error {
 		Username: c.cfg.Username,
 		Password: c.cfg.Password,
 	}
-	res, err := c.sendRequest(&req, false, false)
+	res, err := c.sendRequest(ctx, &req, false, false)
 	if err != nil {
 		return fmt.Errorf("can't send auth response: %w", err)
 	}
@@ -570,14 +581,14 @@ func (c *Conn) AuthResponse(a *Authenticate) error {
 	}
 }
 
-func (c *Conn) UseKeyspace(ks string) error {
-	_, err := c.Query(makeStatement(fmt.Sprintf("USE %q", ks)), nil)
+func (c *Conn) UseKeyspace(ctx context.Context, ks string) error {
+	_, err := c.Query(ctx, makeStatement(fmt.Sprintf("USE %q", ks)), nil)
 	return err
 }
 
-func (c *Conn) Query(s Statement, pagingState frame.Bytes) (QueryResult, error) {
+func (c *Conn) Query(ctx context.Context, s Statement, pagingState frame.Bytes) (QueryResult, error) {
 	req := makeQuery(s, pagingState)
-	res, err := c.sendRequest(&req, s.Compression, s.Tracing)
+	res, err := c.sendRequest(ctx, &req, s.Compression, s.Tracing)
 	if err != nil {
 		return QueryResult{}, err
 	}
@@ -585,9 +596,9 @@ func (c *Conn) Query(s Statement, pagingState frame.Bytes) (QueryResult, error) 
 	return MakeQueryResult(res, s.Metadata)
 }
 
-func (c *Conn) Prepare(s Statement) (Statement, error) {
+func (c *Conn) Prepare(ctx context.Context, s Statement) (Statement, error) {
 	req := Prepare{Query: s.Content}
-	res, err := c.sendRequest(&req, false, false)
+	res, err := c.sendRequest(ctx, &req, false, false)
 	if err != nil {
 		return Statement{}, err
 	}
@@ -604,9 +615,9 @@ func (c *Conn) Prepare(s Statement) (Statement, error) {
 	return Statement{}, responseAsError(res)
 }
 
-func (c *Conn) Execute(s Statement, pagingState frame.Bytes) (QueryResult, error) {
+func (c *Conn) Execute(ctx context.Context, s Statement, pagingState frame.Bytes) (QueryResult, error) {
 	req := makeExecute(s, pagingState)
-	res, err := c.sendRequest(&req, s.Compression, s.Tracing)
+	res, err := c.sendRequest(ctx, &req, s.Compression, s.Tracing)
 	if err != nil {
 		return QueryResult{}, err
 	}
@@ -614,10 +625,10 @@ func (c *Conn) Execute(s Statement, pagingState frame.Bytes) (QueryResult, error
 	return MakeQueryResult(res, s.Metadata)
 }
 
-func (c *Conn) RegisterEventHandler(h func(r response), e ...frame.EventType) error {
+func (c *Conn) RegisterEventHandler(ctx context.Context, h func(r response), e ...frame.EventType) error {
 	c.r.handleEvent = h
 	req := Register{EventTypes: e}
-	res, err := c.sendRequest(&req, false, false)
+	res, err := c.sendRequest(ctx, &req, false, false)
 	if err != nil {
 		return err
 	}
@@ -640,8 +651,11 @@ func MakeResponseHandlerWithError(err error) ResponseHandler {
 	return h
 }
 
-func (c *Conn) sendRequest(req frame.Request, compress, tracing bool) (frame.Response, error) {
-	c.sendController()
+func (c *Conn) sendRequest(ctx context.Context, req frame.Request, compress, tracing bool) (frame.Response, error) {
+	c.sendController(ctx)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 
 	h := MakeResponseHandler()
 
@@ -656,6 +670,7 @@ func (c *Conn) sendRequest(req frame.Request, compress, tracing bool) (frame.Res
 		Compress:        compress,
 		Tracing:         tracing,
 		ResponseHandler: h,
+		ctx:             ctx,
 	}
 
 	// requestCh might be full after terminating writeLoop so some goroutines could hang here forever.
@@ -663,15 +678,21 @@ func (c *Conn) sendRequest(req frame.Request, compress, tracing bool) (frame.Res
 	// adding a grace period before terminating writeLoop or counting active streams.
 	c.w.submit(r)
 
-	resp := <-h
-
-	return resp.Response, resp.Err
+	select {
+	case resp := <-h:
+		return resp.Response, resp.Err
+	case <-ctx.Done():
+		return nil, fmt.Errorf("no response before context cancellation")
+		// TODO: timeout chan?
+	}
 }
 
-func (c *Conn) asyncSendRequest(req frame.Request, compress, tracing bool, h ResponseHandler) {
+func (c *Conn) asyncSendRequest(ctx context.Context, req frame.Request, compress, tracing bool, h ResponseHandler) {
 control:
-	c.sendController()
-
+	c.sendController(ctx)
+	if ctx.Err() != nil {
+		h <- response{Err: fmt.Errorf("no response before context cancellation")}
+	}
 	streamID, err := c.r.setHandler(h)
 	if err != nil {
 		if errors.Is(err, errAllStreamsBusy) {
@@ -688,6 +709,7 @@ control:
 		Compress:        compress,
 		Tracing:         tracing,
 		ResponseHandler: h,
+		ctx:             ctx,
 	}
 
 	// requestCh might be full after terminating writeLoop so some goroutines could hang here forever.
@@ -696,23 +718,23 @@ control:
 	c.w.submit(r)
 }
 
-func (c *Conn) sendController() {
+func (c *Conn) sendController(ctx context.Context) {
 	for {
-		if size := c.Waiting(); size < targetWaiting {
+		if size := c.Waiting(); size < targetWaiting || ctx.Err() != nil {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
 }
 
-func (c *Conn) AsyncQuery(s Statement, pagingState frame.Bytes, h ResponseHandler) {
+func (c *Conn) AsyncQuery(ctx context.Context, s Statement, pagingState frame.Bytes, h ResponseHandler) {
 	req := makeQuery(s, pagingState)
-	c.asyncSendRequest(&req, s.Compression, s.Tracing, h)
+	c.asyncSendRequest(ctx, &req, s.Compression, s.Tracing, h)
 }
 
-func (c *Conn) AsyncExecute(s Statement, pagingState frame.Bytes, h ResponseHandler) {
+func (c *Conn) AsyncExecute(ctx context.Context, s Statement, pagingState frame.Bytes, h ResponseHandler) {
 	req := makeExecute(s, pagingState)
-	c.asyncSendRequest(&req, s.Compression, s.Tracing, h)
+	c.asyncSendRequest(ctx, &req, s.Compression, s.Tracing, h)
 }
 
 func (c *Conn) Waiting() int {

@@ -1,6 +1,7 @@
 package scylla
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/mmatczuk/scylla-go-driver/frame"
@@ -11,18 +12,18 @@ type Query struct {
 	session   *Session
 	stmt      transport.Statement
 	buf       frame.Buffer
-	exec      func(*transport.Conn, transport.Statement, frame.Bytes) (transport.QueryResult, error)
-	asyncExec func(*transport.Conn, transport.Statement, frame.Bytes, transport.ResponseHandler)
+	exec      func(context.Context, *transport.Conn, transport.Statement, frame.Bytes) (transport.QueryResult, error)
+	asyncExec func(context.Context, *transport.Conn, transport.Statement, frame.Bytes, transport.ResponseHandler)
 	res       []transport.ResponseHandler
 }
 
-func (q *Query) Exec() (Result, error) {
+func (q *Query) Exec(ctx context.Context) (Result, error) {
 	conn, err := q.pickConn()
 	if err != nil {
 		return Result{}, err
 	}
 
-	res, err := q.exec(conn, q.stmt, nil)
+	res, err := q.exec(ctx, conn, q.stmt, nil)
 	return Result(res), err
 }
 
@@ -47,7 +48,7 @@ func (q *Query) pickConn() (*transport.Conn, error) {
 	return conn, nil
 }
 
-func (q *Query) AsyncExec() {
+func (q *Query) AsyncExec(ctx context.Context) {
 	stmt := q.stmt.Clone()
 
 	conn, err := q.pickConn()
@@ -58,7 +59,7 @@ func (q *Query) AsyncExec() {
 
 	h := transport.MakeResponseHandler()
 	q.res = append(q.res, h)
-	q.asyncExec(conn, stmt, nil, h)
+	q.asyncExec(ctx, conn, stmt, nil, h)
 }
 
 var ErrNoQueryResults = fmt.Errorf("no query results to be fetched")
@@ -148,7 +149,7 @@ func (q *Query) Compression() bool {
 
 type Result transport.QueryResult
 
-func (q *Query) Iter() Iter {
+func (q *Query) Iter(ctx context.Context) Iter {
 	it := Iter{
 		requestCh: make(chan struct{}, 1),
 		nextCh:    make(chan transport.QueryResult),
@@ -171,7 +172,7 @@ func (q *Query) Iter() Iter {
 	}
 
 	it.requestCh <- struct{}{}
-	go worker.loop()
+	go worker.loop(ctx)
 	return it
 }
 
@@ -232,21 +233,21 @@ type iterWorker struct {
 	stmt        transport.Statement
 	conn        *transport.Conn
 	pagingState []byte
-	queryExec   func(*transport.Conn, transport.Statement, frame.Bytes) (transport.QueryResult, error)
+	queryExec   func(context.Context, *transport.Conn, transport.Statement, frame.Bytes) (transport.QueryResult, error)
 
 	requestCh chan struct{}
 	nextCh    chan transport.QueryResult
 	errCh     chan error
 }
 
-func (w *iterWorker) loop() {
+func (w *iterWorker) loop(ctx context.Context) {
 	for {
 		_, ok := <-w.requestCh
 		if !ok {
 			return
 		}
 
-		res, err := w.queryExec(w.conn, w.stmt, w.pagingState)
+		res, err := w.queryExec(ctx, w.conn, w.stmt, w.pagingState)
 		if err != nil {
 			w.errCh <- err
 			return

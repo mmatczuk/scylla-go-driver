@@ -147,7 +147,7 @@ func (r *PoolRefiller) init(ctx context.Context, host string) error {
 		return err
 	}
 
-	s, err := conn.Supported()
+	s, err := conn.Supported(ctx)
 	if err != nil {
 		conn.Close()
 		return fmt.Errorf("supported: %w", err)

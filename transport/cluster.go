@@ -161,7 +161,7 @@ func (c *Cluster) NewControl(ctx context.Context) (*Conn, error) {
 	for addr := range c.knownHosts {
 		conn, err := OpenConn(ctx, addr, nil, c.cfg)
 		if err == nil {
-			if err := conn.RegisterEventHandler(c.handleEvent, c.handledEvents...); err == nil {
+			if err := conn.RegisterEventHandler(ctx, c.handleEvent, c.handledEvents...); err == nil {
 				return conn, nil
 			} else {
 				errs = append(errs, fmt.Sprintf("%s failed to register for events: %s", conn, err))
@@ -288,12 +288,12 @@ const (
 )
 
 func (c *Cluster) getAllNodesInfo(ctx context.Context) ([]frame.Row, error) {
-	peerRes, err := c.control.Query(peerQuery, nil)
+	peerRes, err := c.control.Query(ctx, peerQuery, nil)
 	if err != nil {
 		return nil, fmt.Errorf("discover peer topology: %w", err)
 	}
 
-	localRes, err := c.control.Query(localQuery, nil)
+	localRes, err := c.control.Query(ctx, localQuery, nil)
 	if err != nil {
 		return nil, fmt.Errorf("discover local topology: %w", err)
 	}
@@ -341,7 +341,7 @@ func (c *Cluster) parseNodeFromRow(r frame.Row) (*Node, error) {
 }
 
 func (c *Cluster) updateKeyspace(ctx context.Context) (ksMap, error) {
-	rows, err := c.control.Query(keyspaceQuery, nil)
+	rows, err := c.control.Query(ctx, keyspaceQuery, nil)
 	if err != nil {
 		return nil, err
 	}

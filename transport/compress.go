@@ -2,8 +2,10 @@ package transport
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/klauspost/compress/s2"
@@ -28,12 +30,15 @@ type compr struct {
 	c lz4.Compressor
 }
 
-func (c *compr) compress(dst io.Writer, src *bytes.Buffer) (written int64, err error) {
+func (c *compr) compress(ctx context.Context, dst io.Writer, src *bytes.Buffer) (written int64, err error) {
 	c.buf = *src
 	buf := c.buf.Bytes()
 	read := len(c.buf.Bytes())
 
 	if read <= 9 {
+		if ctx.Err() != nil {
+			return 0, fmt.Errorf("request aborted due to context cancellation")
+		}
 		nr, err := dst.Write(buf[:read])
 		return int64(nr), err
 	}
@@ -43,6 +48,10 @@ func (c *compr) compress(dst io.Writer, src *bytes.Buffer) (written int64, err e
 	var n int
 	if n, err = c.codec(read); err != nil {
 		return 0, err
+	}
+
+	if ctx.Err() != nil {
+		return 0, fmt.Errorf("request aborted due to context cancellation")
 	}
 
 	nrh, erh := dst.Write(c.header)

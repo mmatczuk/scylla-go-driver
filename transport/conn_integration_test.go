@@ -53,7 +53,7 @@ func (h *connTestHelper) applyFixture() {
 	h.exec("TRUNCATE TABLE mykeyspace.users")
 	h.exec("INSERT INTO mykeyspace.users(user_id, fname, lname) VALUES (1, 'rick', 'sanchez')")
 	h.exec("INSERT INTO mykeyspace.users(user_id, fname, lname) VALUES (4, 'rust', 'cohle')")
-	if err := h.conn.UseKeyspace("mykeyspace"); err != nil {
+	if err := h.conn.UseKeyspace(context.Background(), "mykeyspace"); err != nil {
 		log.Fatalf("use keyspace %v", err)
 	}
 }
@@ -70,7 +70,7 @@ func (h *connTestHelper) exec(cql string) {
 		Content:     cql,
 		Consistency: frame.ONE,
 	}
-	if _, err := h.conn.Query(s, nil); err != nil {
+	if _, err := h.conn.Query(context.Background(), s, nil); err != nil {
 		h.t.Fatal(err)
 	}
 }
@@ -109,11 +109,11 @@ func TestConnMassiveQueryIntegration(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 
-			if _, err := h.conn.Query(makeInsert(id), nil); err != nil {
+			if _, err := h.conn.Query(context.Background(), makeInsert(id), nil); err != nil {
 				t.Fatal(err)
 			}
 
-			res, err := h.conn.Query(makeQuery(id), nil)
+			res, err := h.conn.Query(context.Background(), makeQuery(id), nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -147,7 +147,7 @@ func TestCloseHangingIntegration(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 
-			res, err := h.conn.Query(query, nil)
+			res, err := h.conn.Query(context.Background(), query, nil)
 			if len(res.Rows) != 2 && err == nil {
 				t.Fatalf("invalid number of rows")
 			}
@@ -166,7 +166,7 @@ func TestCloseHangingIntegration(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := h.conn.Query(query, nil)
+			_, err := h.conn.Query(context.Background(), query, nil)
 			if err == nil {
 				t.Fatalf("connection should be closed!")
 			}
@@ -183,7 +183,7 @@ func (h *connTestHelper) applyCompressionFixture(toSend []byte) {
 	h.execCompression("TRUNCATE TABLE mykeyspace.users")
 	h.execCompression(fmt.Sprintf("INSERT INTO mykeyspace.users(user_id, fname, lname) VALUES (1, '%s', 'sanchez')", toSend))
 	h.execCompression("INSERT INTO mykeyspace.users(user_id, fname, lname) VALUES (4, 'rust', 'cohle')")
-	if err := h.conn.UseKeyspace("mykeyspace"); err != nil {
+	if err := h.conn.UseKeyspace(context.Background(), "mykeyspace"); err != nil {
 		log.Fatalf("use keyspace %v", err)
 	}
 }
@@ -195,7 +195,7 @@ func (h *connTestHelper) execCompression(cql string) {
 		Consistency: frame.ONE,
 		Compression: true,
 	}
-	if _, err := h.conn.Query(s, nil); err != nil {
+	if _, err := h.conn.Query(context.Background(), s, nil); err != nil {
 		h.t.Fatal(err)
 	}
 }
@@ -244,7 +244,7 @@ func testCompression(t *testing.T, c frame.Compression, toSend []byte) {
 		},
 	}
 
-	res, err := h.conn.Query(query, nil)
+	res, err := h.conn.Query(context.Background(), query, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

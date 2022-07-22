@@ -3,6 +3,7 @@
 package scylla
 
 import (
+	"context"
 	"testing"
 )
 
@@ -17,17 +18,17 @@ func BenchmarkSessionQueryIntegration(b *testing.B) {
 
 	for _, stmt := range initStmts {
 		q := session.Query(stmt)
-		if _, err := q.Exec(); err != nil {
+		if _, err := q.Exec(context.Background()); err != nil {
 			b.Fatal(err)
 		}
 	}
 
-	insertQuery, err := session.Prepare(insertStmt)
+	insertQuery, err := session.Prepare(context.Background(), insertStmt)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	selectQuery, err := session.Prepare(selectStmt)
+	selectQuery, err := session.Prepare(context.Background(), selectStmt)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -35,7 +36,7 @@ func BenchmarkSessionQueryIntegration(b *testing.B) {
 	b.ResetTimer()
 	for i := int64(0); i < int64(b.N); i++ {
 		insertQuery.BindInt64(0, i).BindInt64(1, 2*i).BindInt64(2, 3*i)
-		_, err := insertQuery.Exec()
+		_, err := insertQuery.Exec(context.Background())
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -43,7 +44,7 @@ func BenchmarkSessionQueryIntegration(b *testing.B) {
 
 	for i := int64(0); i < int64(b.N); i++ {
 		selectQuery.BindInt64(0, i)
-		res, err := selectQuery.Exec()
+		res, err := selectQuery.Exec(context.Background())
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -77,17 +78,17 @@ func BenchmarkSessionAsyncQueryIntegration(b *testing.B) {
 
 	for _, stmt := range initStmts {
 		q := session.Query(stmt)
-		if _, err := q.Exec(); err != nil {
+		if _, err := q.Exec(context.Background()); err != nil {
 			b.Fatal(err)
 		}
 	}
 
-	insertQuery, err := session.Prepare(insertStmt)
+	insertQuery, err := session.Prepare(context.Background(), insertStmt)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	selectQuery, err := session.Prepare(selectStmt)
+	selectQuery, err := session.Prepare(context.Background(), selectStmt)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -95,7 +96,7 @@ func BenchmarkSessionAsyncQueryIntegration(b *testing.B) {
 	b.ResetTimer()
 	for i := int64(0); i < int64(b.N); i++ {
 		insertQuery.BindInt64(0, i).BindInt64(1, 2*i).BindInt64(2, 3*i)
-		insertQuery.AsyncExec()
+		insertQuery.AsyncExec(context.Background())
 	}
 
 	for i := int64(0); i < int64(b.N); i++ {
@@ -106,7 +107,7 @@ func BenchmarkSessionAsyncQueryIntegration(b *testing.B) {
 
 	for i := int64(0); i < int64(b.N); i++ {
 		selectQuery.BindInt64(0, i)
-		selectQuery.AsyncExec()
+		selectQuery.AsyncExec(context.Background())
 	}
 
 	for i := int64(0); i < int64(b.N); i++ {
